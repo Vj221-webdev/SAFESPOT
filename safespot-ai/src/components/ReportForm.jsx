@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
+import CameraCapture from './CameraCapture';
+import { getLocationWithAddress } from '../services/locationService';
 
 const ReportForm = ({ onReportSubmitted, user }) => {
   const [formData, setFormData] = useState({
@@ -9,12 +11,15 @@ const ReportForm = ({ onReportSubmitted, user }) => {
     location: '',
     category: '',
     urgency: 'medium',
-    reporterName: user?.displayName || ''
+    reporterName: user?.displayName || '',
+    coordinates: null
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showCamera, setShowCamera] = useState(false);
+  const [loadingLocation, setLoadingLocation] = useState(false);
 
   const categories = [
     { 
@@ -72,6 +77,13 @@ const ReportForm = ({ onReportSubmitted, user }) => {
       setImagePreview(URL.createObjectURL(file));
       setError('');
     }
+  };
+
+  const handleCameraCapture = (file) => {
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setShowCamera(false);
+    setError('');
   };
 
   const removeImage = () => {
@@ -148,6 +160,14 @@ const ReportForm = ({ onReportSubmitted, user }) => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Camera Modal */}
+      {showCamera && (
+        <CameraCapture
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
       <div className="backdrop-blur-xl bg-white/95 rounded-3xl shadow-2xl p-8 border border-white/20">
         {/* Header */}
         <div className="text-center mb-8">
@@ -283,21 +303,36 @@ const ReportForm = ({ onReportSubmitted, user }) => {
             </label>
             
             {!imagePreview ? (
-              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition-all">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <svg className="w-12 h-12 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Take Photo Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowCamera(true)}
+                  className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-blue-300 rounded-2xl cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition-all group"
+                >
+                  <svg className="w-12 h-12 mb-3 text-blue-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <p className="text-sm font-bold text-blue-600">Take Photo</p>
+                  <p className="text-xs text-gray-500 mt-1">Open camera</p>
+                </button>
+
+                {/* Upload File Button */}
+                <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-all group">
+                  <svg className="w-12 h-12 mb-3 text-gray-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <p className="mb-2 text-sm font-bold text-gray-600">Click to upload image</p>
-                  <p className="text-xs text-gray-500">PNG, JPG or JPEG (Max 5MB)</p>
-                </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                />
-              </label>
+                  <p className="text-sm font-bold text-gray-600">Upload File</p>
+                  <p className="text-xs text-gray-500 mt-1">PNG, JPG (Max 5MB)</p>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                </label>
+              </div>
             ) : (
               <div className="relative rounded-2xl overflow-hidden border-2 border-gray-200">
                 <img 
