@@ -4,6 +4,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import CameraCapture from './CameraCapture';
 import { getLocationWithAddress } from '../services/locationService';
+import { classifyReport, isAIAvailable } from '../services/aiClassifier';
 
 const ReportForm = ({ onReportSubmitted, user }) => {
   const [formData, setFormData] = useState({
@@ -20,6 +21,8 @@ const ReportForm = ({ onReportSubmitted, user }) => {
   const [error, setError] = useState('');
   const [showCamera, setShowCamera] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState(null);
 
   const categories = [
     { 
@@ -86,6 +89,62 @@ const ReportForm = ({ onReportSubmitted, user }) => {
     setError('');
   };
 
+  const handleGetLocation = async () => {
+    setLoadingLocation(true);
+    setError('');
+
+    try {
+      const locationData = await getLocationWithAddress();
+      
+      setFormData(prev => ({
+        ...prev,
+        location: locationData.formatted,
+        coordinates: locationData.coordinates
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
+  const handleAIClassify = async () => {
+    if (!formData.description || formData.description.trim().length < 10) {
+      setError('Please write a more detailed description for AI to analyze');
+      return;
+    }
+
+    if (!isAIAvailable()) {
+      setError('AI classification is not configured. Add REACT_APP_OPENAI_API_KEY to your .env file');
+      return;
+    }
+
+    setClassifying(true);
+    setError('');
+    setAiSuggestion(null);
+
+    try {
+      const classification = await classifyReport(formData.description);
+      
+      setFormData(prev => ({
+        ...prev,
+        category: classification.category,
+        urgency: classification.urgency
+      }));
+
+      setAiSuggestion({
+        category: classification.category,
+        urgency: classification.urgency,
+        confidence: classification.confidence
+      });
+    } catch (err) {
+      console.error('AI Classification error:', err);
+      setError(err.message || 'AI classification failed. Please select manually.');
+    } finally {
+      setClassifying(false);
+    }
+  };
+
   const removeImage = () => {
     setImageFile(null);
     setImagePreview(null);
@@ -131,7 +190,10 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         timestamp: serverTimestamp(),
         status: 'pending',
         votes: 0,
-        imageUrl: imageUrl
+        imageUrl: imageUrl,
+        coordinates: formData.coordinates || null,
+        aiClassified: !!aiSuggestion,
+        aiConfidence: aiSuggestion?.confidence || null
       };
 
       await addDoc(collection(db, 'reports'), reportData);
@@ -141,10 +203,12 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         location: '',
         category: '',
         urgency: 'medium',
-        reporterName: user?.displayName || ''
+        reporterName: user?.displayName || '',
+        coordinates: null
       });
       setImageFile(null);
       setImagePreview(null);
+      setAiSuggestion(null);
 
       if (onReportSubmitted) {
         onReportSubmitted();
@@ -197,10 +261,69 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Description */}
+          <div>
+            <label htmlFor="description" className="block text-sm font-bold text-gray-900 mb-2">
+              Description
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="Describe what you observed and why it needs attention"
+              rows="4"
+              className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-gray-900 placeholder-gray-400 resize-none"
+            />
+            
+            {/* AI Classify Button */}
+            {isAIAvailable() && formData.description.length > 10 && (
+              <button
+                type="button"
+                onClick={handleAIClassify}
+                disabled={classifying}
+                className="mt-3 px-5 py-2.5 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+              >
+                {classifying ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>AI Analyzing...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    <span>AI Auto-Classify</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* AI Suggestion Display */}
+            {aiSuggestion && (
+              <div className="mt-3 bg-purple-50 border-l-4 border-purple-500 rounded-lg p-4 animate-fade-in">
+                <div className="flex items-start gap-3">
+                  <svg className="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-purple-900 mb-1">AI Classification Complete!</p>
+                    <p className="text-xs text-purple-700">
+                      Category: <span className="font-semibold capitalize">{aiSuggestion.category}</span> • 
+                      Urgency: <span className="font-semibold capitalize">{aiSuggestion.urgency}</span> • 
+                      Confidence: {Math.round(aiSuggestion.confidence * 100)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Category Selection */}
           <div>
             <label className="block text-sm font-bold text-gray-900 mb-3">
-              Issue Category
+              Issue Category {aiSuggestion && <span className="text-purple-600 text-xs">(AI Selected)</span>}
             </label>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {categories.map(cat => (
@@ -230,7 +353,7 @@ const ReportForm = ({ onReportSubmitted, user }) => {
           {/* Urgency Level */}
           <div>
             <label className="block text-sm font-bold text-gray-900 mb-3">
-              Urgency Level
+              Urgency Level {aiSuggestion && <span className="text-purple-600 text-xs">(AI Selected)</span>}
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {urgencyLevels.map(level => (
@@ -258,42 +381,59 @@ const ReportForm = ({ onReportSubmitted, user }) => {
             </div>
           </div>
 
-          {/* Description */}
-          <div>
-            <label htmlFor="description" className="block text-sm font-bold text-gray-900 mb-2">
-              Description
-            </label>
-            <textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Describe what you observed and why it needs attention"
-              rows="4"
-              className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-gray-900 placeholder-gray-400 resize-none"
-            />
-          </div>
-
           {/* Location */}
           <div>
             <label htmlFor="location" className="block text-sm font-bold text-gray-900 mb-2">
               Location
             </label>
-            <div className="relative">
-              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <input
-                type="text"
-                id="location"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                placeholder="Street address or intersection"
-                className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-gray-900 placeholder-gray-400"
-              />
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  placeholder="Street address or intersection"
+                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-gray-900 placeholder-gray-400"
+                />
+              </div>
+              
+              {/* GPS Button */}
+              <button
+                type="button"
+                onClick={handleGetLocation}
+                disabled={loadingLocation}
+                className="px-6 py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2 whitespace-nowrap"
+              >
+                {loadingLocation ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span className="hidden sm:inline">Getting...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="hidden sm:inline">Use GPS</span>
+                  </>
+                )}
+              </button>
             </div>
+            {formData.coordinates && (
+              <p className="mt-2 text-xs text-green-600 font-medium flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                GPS coordinates saved ({formData.coordinates.latitude.toFixed(4)}, {formData.coordinates.longitude.toFixed(4)})
+              </p>
+            )}
           </div>
 
           {/* Image Upload */}
