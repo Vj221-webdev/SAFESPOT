@@ -18,7 +18,6 @@ export default function Settings() {
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
 
-  // ------------------ Account Management ------------------
   const saveAccount = () => {
     setAccounts([{ username, email }]);
     alert("Account settings updated!");
