@@ -26,7 +26,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Close menu if clicked outside
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
