@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from "react";
 
-// Dummy reports data
+// Sample dummy data for reports
 const sampleReports = Array.from({ length: 50 }, (_, i) => ({
   id: i + 1,
   title: `Report ${i + 1}`,
   description: `This is a detailed description of report number ${i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit.`,
   status: ["Pending", "Approved", "Rejected"][i % 3],
   priority: ["Normal", "High", "Urgent"][i % 3],
-  assignedTo: `User ${i % 5 + 1}`,
   createdAt: new Date(Date.now() - i * 1000 * 60 * 60 * 24).toLocaleDateString(),
   updatedAt: new Date(Date.now() - i * 1000 * 60 * 60 * 12).toLocaleDateString(),
 }));
 
-export default function ManageReports() {
+export default function ViewReports() {
   const [reports, setReports] = useState(sampleReports);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
@@ -22,12 +21,12 @@ export default function ManageReports() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  // Reset page when filters/search change
+  // Reset page when search or filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterStatus, filterPriority]);
 
-  // Filter reports
+  // Filtered reports
   const filteredReports = reports.filter((report) => {
     const matchesSearch = report.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === "All" ? true : report.status === filterStatus;
@@ -35,6 +34,7 @@ export default function ManageReports() {
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
+  // Pagination logic
   const indexOfLastReport = currentPage * reportsPerPage;
   const indexOfFirstReport = indexOfLastReport - reportsPerPage;
   const currentReports = filteredReports.slice(indexOfFirstReport, indexOfLastReport);
@@ -50,7 +50,7 @@ export default function ManageReports() {
     setShowModal(false);
   };
 
-  // Helpers
+  // Styling helpers
   const statusColor = (status) => {
     switch (status) {
       case "Approved":
@@ -73,36 +73,24 @@ export default function ManageReports() {
     }
   };
 
-  const updateReportStatus = (id, newStatus) => {
-    setReports((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus, updatedAt: new Date().toLocaleDateString() } : r))
-    );
-  };
-
-  const deleteReport = (id) => {
-    if (window.confirm("Are you sure you want to delete this report?")) {
-      setReports((prev) => prev.filter((r) => r.id !== id));
-    }
-  };
-
   return (
     <div className="w-full p-6">
-      <h2 className="text-2xl font-bold mb-6">Manage Reports</h2>
+      <h2 className="text-2xl font-bold mb-6">View Reports</h2>
 
-      {/* Search & Filters */}
+      {/* Search and Filters */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <input
           type="text"
           placeholder="Search reports..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full md:w-1/3 border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full md:w-1/3 border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
         />
         <div className="flex gap-4 flex-wrap">
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             <option value="All">All Status</option>
             <option value="Pending">Pending</option>
@@ -112,7 +100,7 @@ export default function ManageReports() {
           <select
             value={filterPriority}
             onChange={(e) => setFilterPriority(e.target.value)}
-            className="border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             <option value="All">All Priority</option>
             <option value="Normal">Normal</option>
@@ -129,9 +117,9 @@ export default function ManageReports() {
             <tr>
               <th className="px-6 py-3 text-left font-semibold">ID</th>
               <th className="px-6 py-3 text-left font-semibold">Title</th>
-              <th className="px-6 py-3 text-left font-semibold">Assigned To</th>
               <th className="px-6 py-3 text-left font-semibold">Status</th>
               <th className="px-6 py-3 text-left font-semibold">Priority</th>
+              <th className="px-6 py-3 text-left font-semibold">Created At</th>
               <th className="px-6 py-3 text-left font-semibold">Actions</th>
             </tr>
           </thead>
@@ -147,36 +135,16 @@ export default function ManageReports() {
                 <tr key={report.id} className="hover:bg-gray-50 transition">
                   <td className="px-6 py-4">{report.id}</td>
                   <td className="px-6 py-4">{report.title}</td>
-                  <td className="px-6 py-4">{report.assignedTo}</td>
-                  <td className={`px-6 py-4 font-semibold ${statusColor(report.status)}`}>{report.status}</td>
-                  <td className={`px-6 py-4 font-semibold ${priorityColor(report.priority)}`}>{report.priority}</td>
-                  <td className="px-6 py-4 flex gap-2 flex-wrap">
+                  <td className={`px-6 py-4 font-semibold ${statusColor(report.status)}`}>
+                    {report.status}
+                  </td>
+                  <td className={`px-6 py-4 font-semibold ${priorityColor(report.priority)}`}>
+                    {report.priority}
+                  </td>
+                  <td className="px-6 py-4">{report.createdAt}</td>
+                  <td className="px-6 py-4">
                     <button
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-xl font-semibold transition"
-                      onClick={() => updateReportStatus(report.id, "Approved")}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-xl font-semibold transition"
-                      onClick={() => updateReportStatus(report.id, "Pending")}
-                    >
-                      Pending
-                    </button>
-                    <button
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-xl font-semibold transition"
-                      onClick={() => updateReportStatus(report.id, "Rejected")}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-xl font-semibold transition"
-                      onClick={() => deleteReport(report.id)}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-xl font-semibold transition"
+                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-semibold transition"
                       onClick={() => openModal(report)}
                     >
                       View
@@ -197,8 +165,8 @@ export default function ManageReports() {
             onClick={() => handlePageChange(i + 1)}
             className={`px-4 py-2 rounded-xl font-semibold border ${
               currentPage === i + 1
-                ? "bg-blue-500 text-white border-blue-500"
-                : "bg-white text-gray-700 border-gray-300 hover:bg-blue-50"
+                ? "bg-red-500 text-white border-red-500"
+                : "bg-white text-gray-700 border-gray-300 hover:bg-red-50"
             } transition`}
           >
             {i + 1}
@@ -206,7 +174,7 @@ export default function ManageReports() {
         ))}
       </div>
 
-      {/* Modal */}
+      {/* Modal for Report Details */}
       {showModal && selectedReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white w-11/12 md:w-2/3 lg:w-1/2 p-6 rounded-xl shadow-lg relative">
@@ -227,9 +195,15 @@ export default function ManageReports() {
                 <span className="font-semibold">Priority: </span>
                 <span className={priorityColor(selectedReport.priority)}>{selectedReport.priority}</span>
               </div>
+            </div>
+            <div className="flex gap-6 flex-wrap">
               <div>
-                <span className="font-semibold">Assigned To: </span>
-                {selectedReport.assignedTo}
+                <span className="font-semibold">Created At: </span>
+                {selectedReport.createdAt}
+              </div>
+              <div>
+                <span className="font-semibold">Updated At: </span>
+                {selectedReport.updatedAt}
               </div>
             </div>
             <div className="flex justify-end mt-6 gap-4">

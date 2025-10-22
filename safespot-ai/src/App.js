@@ -5,6 +5,7 @@ import Auth from './components/Auth';
 import ReportForm from './components/ReportForm';
 import ReportList from './components/ReportList';
 // Pages
+import ViewReports from './components/ViewReports';
 import ManageReports from './components/ManageReports';
 import MoreInfo from './components/MoreInfo';
 import HelpSupport from './components/HelpSupport';
@@ -292,7 +293,7 @@ function App() {
       <main className="w-full ">
         <div className="w-full">
           {activeTab === 'form' && <ReportForm onReportSubmitted={handleReportSubmitted} user={user} />}
-          {activeTab === 'list' && <ReportList user={user} />}
+          {activeTab === 'list' && <ViewReports user={user} />}
           {activeTab === 'manage' && <ManageReports user={user} />}
           {activeTab === 'info' && <MoreInfo user={user} />}
           {activeTab === 'help' && <HelpSupport user={user} />}
