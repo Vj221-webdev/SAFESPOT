@@ -222,7 +222,7 @@ function App() {
                         <div className="border-t mt-2 pt-2">
                           <button
                             onClick={handleLogout}
-                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 font-semibold"
+                            className="w-full bg-gray-50 text-left px-3 py-2 rounded-xl hover:bg-red-200 font-semibold"
                           >
                             Logout
                           </button>
@@ -299,18 +299,6 @@ function App() {
           {activeTab === 'settings' && <Settings user={user} />}
         </div>
       </main>
-     
-  
-  {/* Main Content Area */}
-  {/* <main className="flex-1 overflow-auto">
-    {activeTab === 'form' && <ReportForm onReportSubmitted={handleReportSubmitted} user={user} />}
-    {activeTab === 'list' && <ReportList user={user} />}
-    {activeTab === 'manage' && <ManageReports user={user} />}
-    {activeTab === 'info' && <MoreInfo user={user} />}
-    {activeTab === 'help' && <HelpSupport user={user} />}
-    {activeTab === 'settings' && <Settings user={user} />}
-  </main> */}
-
 
       {/* Footer */}
       <footer className="backdrop-blur-xl bg-gray-900/95 text-white border-t border-white/10">
