@@ -137,7 +137,7 @@ function App() {
                   <span className="hidden sm:inline">Report</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('list')}
+                  onClick={() => setActiveTab('db')}
                   className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all ${
                     activeTab === 'list'
                       ? 'bg-white text-gray-900 shadow-lg scale-105'
@@ -293,6 +293,7 @@ function App() {
       <main className="w-full ">
         <div className="w-full">
           {activeTab === 'form' && <ReportForm onReportSubmitted={handleReportSubmitted} user={user} />}
+          {activeTab === 'db' && <ReportList user={user} />}
           {activeTab === 'list' && <ViewReports user={user} />}
           {activeTab === 'manage' && <ManageReports user={user} />}
           {activeTab === 'info' && <MoreInfo user={user} />}
