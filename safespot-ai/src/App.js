@@ -4,7 +4,6 @@ import { auth } from './firebase';
 import Auth from './components/Auth';
 import ReportForm from './components/ReportForm';
 import ReportList from './components/ReportList';
-// Pages
 import ViewReports from './components/ViewReports';
 import ManageReports from './components/ManageReports';
 import MoreInfo from './components/MoreInfo';
