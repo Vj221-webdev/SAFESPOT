@@ -231,8 +231,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
           onClose={() => setShowCamera(false)}
         />
       )}
-
-      <div className="backdrop-blur-xl bg-white/95 rounded-3xl shadow-2xl p-8 border border-white/20">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg mb-4">
@@ -549,8 +547,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
             </div>
           </div>
         </form>
-      </div>
-
       <style jsx>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }

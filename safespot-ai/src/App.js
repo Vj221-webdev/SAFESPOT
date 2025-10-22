@@ -83,7 +83,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
       <header className="backdrop-blur-xl bg-white/95 shadow-2xl sticky top-0 z-50 border-b border-white/20">
         <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -289,7 +289,7 @@ function App() {
       )}
 
       {/* Main Content */}
-      <main className="w-full">
+      <main className="w-full ">
         <div className="w-full">
           {activeTab === 'form' && <ReportForm onReportSubmitted={handleReportSubmitted} user={user} />}
           {activeTab === 'list' && <ReportList user={user} />}
@@ -299,6 +299,18 @@ function App() {
           {activeTab === 'settings' && <Settings user={user} />}
         </div>
       </main>
+     
+  
+  {/* Main Content Area */}
+  {/* <main className="flex-1 overflow-auto">
+    {activeTab === 'form' && <ReportForm onReportSubmitted={handleReportSubmitted} user={user} />}
+    {activeTab === 'list' && <ReportList user={user} />}
+    {activeTab === 'manage' && <ManageReports user={user} />}
+    {activeTab === 'info' && <MoreInfo user={user} />}
+    {activeTab === 'help' && <HelpSupport user={user} />}
+    {activeTab === 'settings' && <Settings user={user} />}
+  </main> */}
+
 
       {/* Footer */}
       <footer className="backdrop-blur-xl bg-gray-900/95 text-white border-t border-white/10">
