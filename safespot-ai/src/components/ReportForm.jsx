@@ -19,6 +19,43 @@ const ReportForm = ({ onReportSubmitted, user }) => {
   const [error, setError] = useState('');
   const [showCamera, setShowCamera] = useState(false);
 
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return;
+    }
+  
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+  
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          );
+          const data = await response.json();
+  
+          if (data.display_name) {
+            setFormData((prev) => ({
+              ...prev,
+              location: data.display_name,
+            }));
+          } else {
+            setError('Could not determine your exact address.');
+          }
+        } catch (err) {
+          console.error('Error fetching address:', err);
+          setError('Failed to fetch address details.');
+        }
+      },
+      (err) => {
+        console.error(err);
+        setError('Location access denied. Please enable it and try again.');
+      }
+    );
+  };
+  
+
   const categories = [
     { 
       id: 'lighting', 
@@ -359,32 +396,47 @@ const ReportForm = ({ onReportSubmitted, user }) => {
               </div>
             </div>
 
+        
             {/* Location */}
-            <div className="group">
-              <label htmlFor="location" className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Location
-                <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <input
-                  type="text"
-                  id="location"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleChange}
-                  placeholder="Street address or intersection"
-                  className="w-full pl-14 pr-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all duration-300 outline-none text-gray-900 placeholder-gray-400 font-medium"
-                />
-              </div>
-            </div>
+<div className="group">
+  <label htmlFor="location" className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    Location
+    <span className="text-red-500">*</span>
+  </label>
+
+  <div className="relative">
+    <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    <input
+      type="text"
+      id="location"
+      name="location"
+      value={formData.location}
+      onChange={handleChange}
+      placeholder="Street address or intersection"
+      className="w-full pl-14 pr-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all duration-300 outline-none text-gray-900 placeholder-gray-400 font-medium"
+    />
+  </div>
+
+  {/* Use My Current Location Button */}
+  <button
+    type="button"
+    onClick={handleUseCurrentLocation}
+    className="mt-3 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg hover:scale-105 transition-all flex items-center gap-2"
+  >
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    Use My Current Location
+  </button>
+</div>
+
 
             {/* Image Upload */}
             <div>
