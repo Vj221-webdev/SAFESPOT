@@ -12,49 +12,116 @@ const ReportForm = ({ onReportSubmitted, user }) => {
     urgency: 'medium',
     reporterName: user?.displayName || ''
   });
+  const [coordinates, setCoordinates] = useState(null); // Store lat/lng
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
   const [showCamera, setShowCamera] = useState(false);
+  const [loadingLocation, setLoadingLocation] = useState(false);
 
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser.');
       return;
     }
-  
+
+    setLoadingLocation(true);
+    setError('');
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const { latitude, longitude } = position.coords;
-  
+        const { latitude, longitude, accuracy } = position.coords;
+        
+        // Store coordinates for submission
+        setCoordinates({ latitude, longitude, accuracy });
+
         try {
+          // Use OpenStreetMap Nominatim for reverse geocoding
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'SafeSpot-App' // Required by Nominatim
+              }
+            }
           );
           const data = await response.json();
-  
-          if (data.display_name) {
+
+          if (data.address) {
+            // Build a more precise address from components
+            const address = data.address;
+            const addressParts = [];
+
+            // Add street number and name
+            if (address.house_number) addressParts.push(address.house_number);
+            if (address.road) addressParts.push(address.road);
+            
+            // Add neighborhood or suburb
+            if (address.neighbourhood) addressParts.push(address.neighbourhood);
+            else if (address.suburb) addressParts.push(address.suburb);
+            
+            // Add city
+            if (address.city) addressParts.push(address.city);
+            else if (address.town) addressParts.push(address.town);
+            else if (address.village) addressParts.push(address.village);
+            
+            // Add state and postcode
+            if (address.state) addressParts.push(address.state);
+            if (address.postcode) addressParts.push(address.postcode);
+
+            const formattedAddress = addressParts.join(', ') || data.display_name;
+
             setFormData((prev) => ({
               ...prev,
-              location: data.display_name,
+              location: formattedAddress,
             }));
+
+            setLoadingLocation(false);
           } else {
-            setError('Could not determine your exact address.');
+            setFormData((prev) => ({
+              ...prev,
+              location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+            }));
+            setLoadingLocation(false);
           }
         } catch (err) {
           console.error('Error fetching address:', err);
-          setError('Failed to fetch address details.');
+          // Fallback to coordinates if geocoding fails
+          setFormData((prev) => ({
+            ...prev,
+            location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          }));
+          setError('Location detected, but address lookup failed. You can manually edit the location.');
+          setLoadingLocation(false);
         }
       },
       (err) => {
-        console.error(err);
-        setError('Location access denied. Please enable it and try again.');
+        console.error('Geolocation error:', err);
+        setLoadingLocation(false);
+        
+        switch(err.code) {
+          case err.PERMISSION_DENIED:
+            setError('Location access denied. Please enable location permissions in your browser settings.');
+            break;
+          case err.POSITION_UNAVAILABLE:
+            setError('Location information unavailable. Please check your device settings.');
+            break;
+          case err.TIMEOUT:
+            setError('Location request timed out. Please try again.');
+            break;
+          default:
+            setError('An error occurred while detecting your location.');
+        }
+      },
+      {
+        enableHighAccuracy: true, // Request high accuracy
+        timeout: 10000, // 10 second timeout
+        maximumAge: 0 // Don't use cached position
       }
     );
   };
-  
 
   const categories = [
     { 
@@ -203,7 +270,15 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         timestamp: serverTimestamp(),
         status: 'pending',
         votes: 0,
-        imageUrl: imageUrl
+        imageUrl: imageUrl,
+        // Add coordinates if available for map functionality
+        ...(coordinates && {
+          coordinates: {
+            latitude: coordinates.latitude,
+            longitude: coordinates.longitude,
+            accuracy: coordinates.accuracy
+          }
+        })
       };
 
       await addDoc(collection(db, 'reports'), reportData);
@@ -217,6 +292,7 @@ const ReportForm = ({ onReportSubmitted, user }) => {
       });
       setImageFile(null);
       setImagePreview(null);
+      setCoordinates(null);
 
       if (onReportSubmitted) {
         onReportSubmitted();
@@ -396,47 +472,68 @@ const ReportForm = ({ onReportSubmitted, user }) => {
               </div>
             </div>
 
-        
             {/* Location */}
-<div className="group">
-  <label htmlFor="location" className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-    Location
-    <span className="text-red-500">*</span>
-  </label>
+            <div className="group">
+              <label htmlFor="location" className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Location
+                <span className="text-red-500">*</span>
+              </label>
 
-  <div className="relative">
-    <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-    <input
-      type="text"
-      id="location"
-      name="location"
-      value={formData.location}
-      onChange={handleChange}
-      placeholder="Street address or intersection"
-      className="w-full pl-14 pr-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all duration-300 outline-none text-gray-900 placeholder-gray-400 font-medium"
-    />
-  </div>
+              <div className="relative">
+                <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  placeholder="Street address or intersection"
+                  className="w-full pl-14 pr-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all duration-300 outline-none text-gray-900 placeholder-gray-400 font-medium"
+                />
+              </div>
 
-  {/* Use My Current Location Button */}
-  <button
-    type="button"
-    onClick={handleUseCurrentLocation}
-    className="mt-3 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg hover:scale-105 transition-all flex items-center gap-2"
-  >
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-    Use My Current Location
-  </button>
-</div>
+              {/* Use My Current Location Button */}
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={loadingLocation}
+                className="mt-4 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl disabled:shadow-md transform hover:scale-105 disabled:scale-100 transition-all duration-300 flex items-center gap-3 group"
+              >
+                {loadingLocation ? (
+                  <>
+                    <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Detecting Location...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>Use My Current Location</span>
+                  </>
+                )}
+              </button>
 
+              {/* Location accuracy indicator */}
+              {coordinates && (
+                <div className="mt-3 flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl">
+                  <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                  </svg>
+                  <span className="text-sm font-semibold text-green-700">
+                    Location detected (±{Math.round(coordinates.accuracy)}m accuracy)
+                  </span>
+                </div>
+              )}
+            </div>
 
             {/* Image Upload */}
             <div>
