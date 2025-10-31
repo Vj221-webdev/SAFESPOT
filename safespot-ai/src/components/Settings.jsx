@@ -1,82 +1,403 @@
 import React, { useState, useEffect } from "react";
+import { 
+  updateProfile, 
+  updateEmail, 
+  updatePassword, 
+  EmailAuthProvider, 
+  reauthenticateWithCredential,
+  signOut 
+} from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "../firebase";
 
-export default function Settings() {
+export default function Settings({ user }) {
+  
   // Account Info
-  const [username, setUsername] = useState("JohnDoe");
-  const [email, setEmail] = useState("johndoe@example.com");
-  const [accounts, setAccounts] = useState([{ username, email }]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newAccount, setNewAccount] = useState({ username: "", email: "" });
-
-  // Privacy / Security
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  
+  // Password Change
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  
+  // Preferences
   const [twoFactorAuth, setTwoFactorAuth] = useState(false);
-
-  // Display / Notifications
   const [darkMode, setDarkMode] = useState(false);
-  const [notifications, setNotifications] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [reportUpdates, setReportUpdates] = useState(true);
+  
+  // UI States
+  const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const saveAccount = () => {
-    setAccounts([{ username, email }]);
-    alert("Account settings updated!");
-  };
-
-  const createAccount = () => {
-    if (!newAccount.username || !newAccount.email) {
-      alert("Please fill all fields");
-      return;
-    }
-    setAccounts([...accounts, newAccount]);
-    setNewAccount({ username: "", email: "" });
-    setShowCreateModal(false);
-    alert("New account created!");
-  };
-
-  const deleteAccount = (index) => {
-    if (window.confirm("Delete this account?")) {
-      const updatedAccounts = accounts.filter((_, i) => i !== index);
-      setAccounts(updatedAccounts);
-    }
-  };
-
-  const changePassword = () => {
-    if (!newPassword) {
-      alert("Please enter new password");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      alert("Passwords do not match");
-      return;
-    }
-    setPassword(newPassword);
-    setNewPassword("");
-    setConfirmPassword("");
-    alert("Password changed!");
-  };
-
-  const clearCache = () => alert("Cache cleared!");
-
-  const deleteAllAccounts = () => {
-    if (window.confirm("Delete all accounts? This cannot be undone.")) {
-      setAccounts([]);
-      setUsername("");
-      setEmail("");
-      alert("All accounts deleted!");
-    }
-  };
-
-  const logout = () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      alert("Logged out successfully!");
-    }
-  };
-
+  // Load dark mode from localStorage immediately
   useEffect(() => {
-    if (darkMode) document.body.classList.add("bg-gray-900", "text-gray-100");
-    else document.body.classList.remove("bg-gray-900", "text-gray-100");
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    if (savedDarkMode) {
+      setDarkMode(true);
+    }
+  }, []);
+
+  // Load user data and preferences from Firestore
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Set basic user info from Firebase Auth
+        setUsername(user.displayName || "");
+        setEmail(user.email || "");
+
+        // Load user preferences from Firestore
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setTwoFactorAuth(data.twoFactorAuth || false);
+          
+          // Load dark mode from localStorage first, then Firestore
+          const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+          const firestoreDarkMode = data.darkMode || false;
+          setDarkMode(savedDarkMode || firestoreDarkMode);
+          
+          setEmailNotifications(data.emailNotifications !== false);
+          setPushNotifications(data.pushNotifications !== false);
+          setReportUpdates(data.reportUpdates !== false);
+        } else {
+          // Create initial user document if it doesn't exist
+          await setDoc(userDocRef, {
+            displayName: user.displayName || "",
+            email: user.email || "",
+            createdAt: new Date(),
+            emailNotifications: true,
+            pushNotifications: true,
+            reportUpdates: true,
+            darkMode: false,
+            twoFactorAuth: false
+          });
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
+        setErrorMessage("Failed to load user preferences");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [user]);
+
+  // Apply dark mode with custom styles
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+      
+      // Create style element if it doesn't exist
+      if (!document.getElementById('dark-mode-styles')) {
+        const style = document.createElement('style');
+        style.id = 'dark-mode-styles';
+        style.innerHTML = `
+          body.dark-mode {
+            background: #0f172a !important;
+          }
+          body.dark-mode * {
+            border-color: #334155 !important;
+          }
+          body.dark-mode .bg-white {
+            background: #1e293b !important;
+            color: #f1f5f9 !important;
+          }
+          body.dark-mode .bg-gradient-to-br.from-gray-50,
+          body.dark-mode .bg-gray-50 {
+            background: #0f172a !important;
+          }
+          body.dark-mode .text-gray-900 {
+            color: #f1f5f9 !important;
+          }
+          body.dark-mode .text-gray-800 {
+            color: #e2e8f0 !important;
+          }
+          body.dark-mode .text-gray-700 {
+            color: #cbd5e1 !important;
+          }
+          body.dark-mode .text-gray-600 {
+            color: #94a3b8 !important;
+          }
+          body.dark-mode .text-gray-500 {
+            color: #64748b !important;
+          }
+          body.dark-mode .text-gray-400 {
+            color: #475569 !important;
+          }
+          body.dark-mode input,
+          body.dark-mode textarea,
+          body.dark-mode select {
+            background: #0f172a !important;
+            color: #f1f5f9 !important;
+            border-color: #334155 !important;
+          }
+          body.dark-mode input:focus,
+          body.dark-mode textarea:focus,
+          body.dark-mode select:focus {
+            background: #1e293b !important;
+            border-color: #3b82f6 !important;
+          }
+          body.dark-mode input::placeholder,
+          body.dark-mode textarea::placeholder {
+            color: #64748b !important;
+          }
+          body.dark-mode .from-gray-50.to-gray-100,
+          body.dark-mode .bg-gradient-to-br {
+            background: linear-gradient(to bottom right, #0f172a, #1e293b) !important;
+          }
+          body.dark-mode .border-gray-200,
+          body.dark-mode .border-gray-100 {
+            border-color: #334155 !important;
+          }
+          body.dark-mode .shadow-xl,
+          body.dark-mode .shadow-2xl {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+          }
+          body.dark-mode .shadow-lg {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    } else {
+      document.body.classList.remove('dark-mode');
+      const styleElement = document.getElementById('dark-mode-styles');
+      if (styleElement) {
+        styleElement.remove();
+      }
+    }
+    
+    localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
+
+  // Save account information
+  const saveAccountInfo = async () => {
+    if (!user) return;
+
+    setSaving(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      // Update display name in Firebase Auth
+      if (username !== user.displayName) {
+        await updateProfile(user, {
+          displayName: username
+        });
+      }
+
+      // Update email if changed (requires recent authentication)
+      if (email !== user.email) {
+        await updateEmail(user, email);
+      }
+
+      // Update Firestore document
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        displayName: username,
+        email: email,
+        updatedAt: new Date()
+      });
+
+      setSuccessMessage("Account information updated successfully!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Error updating account:", error);
+      
+      if (error.code === "auth/requires-recent-login") {
+        setErrorMessage("Please log out and log back in to change your email");
+      } else if (error.code === "auth/email-already-in-use") {
+        setErrorMessage("This email is already in use by another account");
+      } else {
+        setErrorMessage("Failed to update account information");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Change password
+  const changePassword = async () => {
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (!currentPassword) {
+      setPasswordError("Please enter your current password");
+      return;
+    }
+
+    if (!newPassword) {
+      setPasswordError("Please enter a new password");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
+      await reauthenticateWithCredential(user, credential);
+
+      // Update password
+      await updatePassword(user, newPassword);
+
+      setPasswordSuccess("Password changed successfully!");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setPasswordSuccess(""), 3000);
+    } catch (error) {
+      console.error("Error changing password:", error);
+      
+      if (error.code === "auth/wrong-password") {
+        setPasswordError("Current password is incorrect");
+      } else if (error.code === "auth/weak-password") {
+        setPasswordError("Password is too weak");
+      } else {
+        setPasswordError("Failed to change password");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Update preferences
+  const updatePreference = async (preference, value) => {
+    if (!user) return;
+
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        [preference]: value,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error("Error updating preference:", error);
+    }
+  };
+
+  // Handle toggle changes with Firestore update
+  const handleToggle = async (setter, preference, currentValue) => {
+    const newValue = !currentValue;
+    setter(newValue);
+    await updatePreference(preference, newValue);
+  };
+
+  // Clear cache
+  const clearCache = () => {
+    if (window.confirm("Are you sure you want to clear the cache?")) {
+      localStorage.clear();
+      sessionStorage.clear();
+      setSuccessMessage("Cache cleared successfully!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    }
+  };
+
+  // Delete account
+  const deleteAccount = async () => {
+    if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+      return;
+    }
+
+    const confirmText = window.prompt("Type 'DELETE' to confirm account deletion:");
+    if (confirmText !== "DELETE") {
+      return;
+    }
+
+    try {
+      // Delete user document from Firestore
+      const userDocRef = doc(db, "users", user.uid);
+      await setDoc(userDocRef, { deleted: true, deletedAt: new Date() }, { merge: true });
+
+      // Delete Firebase Auth account
+      await user.delete();
+
+      // Redirect to home
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      
+      if (error.code === "auth/requires-recent-login") {
+        setErrorMessage("Please log out and log back in to delete your account");
+      } else {
+        setErrorMessage("Failed to delete account");
+      }
+    }
+  };
+
+  // Logout
+  const logout = async () => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      try {
+        await signOut(auth);
+        window.location.href = "/login";
+      } catch (error) {
+        console.error("Error logging out:", error);
+        setErrorMessage("Failed to logout");
+      }
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-semibold">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-md">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-black text-gray-900 mb-2">Not Logged In</h3>
+          <p className="text-gray-600 mb-6">Please log in to access settings</p>
+          <button
+            onClick={() => window.location.href = "/login"}
+            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 p-6">
@@ -93,9 +414,37 @@ export default function Settings() {
             Settings
           </h2>
           <p className="text-gray-600 text-lg font-medium max-w-2xl mx-auto">
-            Manage your account, privacy, display, and notification preferences
+            Manage your account, security, and preferences
           </p>
         </div>
+
+        {/* Success/Error Messages */}
+        {successMessage && (
+          <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 rounded-xl p-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+              </svg>
+              <span className="text-green-800 font-semibold">{successMessage}</span>
+            </div>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="mb-6 bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-500 rounded-xl p-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+              </svg>
+              <span className="text-red-800 font-semibold">{errorMessage}</span>
+              <button onClick={() => setErrorMessage("")} className="ml-auto text-red-400 hover:text-red-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-6">
           {/* Account Management Section */}
@@ -111,77 +460,50 @@ export default function Settings() {
 
             <div className="space-y-4">
               <div className="group">
-                <label className="block text-sm font-bold text-gray-900 mb-2">Username</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">Display Name</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-300 outline-none text-gray-900 font-medium"
-                  placeholder="Username"
+                  placeholder="Your display name"
                 />
               </div>
 
               <div className="group">
-                <label className="block text-sm font-bold text-gray-900 mb-2">Email</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">Email Address</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-300 outline-none text-gray-900 font-medium"
-                  placeholder="Email"
+                  placeholder="your.email@example.com"
                 />
+                <p className="mt-2 text-sm text-gray-500">You may need to re-login after changing your email</p>
               </div>
 
-              <div className="flex gap-4 flex-wrap">
+              <div className="flex gap-4 flex-wrap pt-2">
                 <button
-                  onClick={saveAccount}
-                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                  onClick={saveAccountInfo}
+                  disabled={saving}
+                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 transition-all duration-300"
                 >
-                  Save Account
-                </button>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="px-8 py-4 bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
-                >
-                  Create New Account
+                  {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
 
-              {/* Accounts Table */}
-              <div className="mt-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gradient-to-r from-gray-100 to-gray-200">
-                      <tr>
-                        <th className="px-6 py-4 text-left font-black text-gray-900 text-sm">Username</th>
-                        <th className="px-6 py-4 text-left font-black text-gray-900 text-sm">Email</th>
-                        <th className="px-6 py-4 text-left font-black text-gray-900 text-sm">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white">
-                      {accounts.map((acc, index) => (
-                        <tr key={index} className="border-t border-gray-100 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all">
-                          <td className="px-6 py-4 font-semibold text-gray-900">{acc.username}</td>
-                          <td className="px-6 py-4 font-medium text-gray-700">{acc.email}</td>
-                          <td className="px-6 py-4">
-                            <button
-                              onClick={() => deleteAccount(index)}
-                              className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-lg font-bold shadow-md hover:shadow-lg transform hover:scale-105 transition-all"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {accounts.length === 0 && (
-                        <tr>
-                          <td colSpan="3" className="text-center py-8 text-gray-500 font-semibold">
-                            No accounts available
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+              {/* Account Info Display */}
+              <div className="mt-6 p-5 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl border border-blue-200">
+                <div className="flex items-center gap-3 mb-3">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="font-bold text-blue-900">Account Information</span>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <p className="text-gray-700"><span className="font-semibold">User ID:</span> {user.uid}</p>
+                  <p className="text-gray-700"><span className="font-semibold">Account created:</span> {user.metadata.creationTime}</p>
+                  <p className="text-gray-700"><span className="font-semibold">Last sign-in:</span> {user.metadata.lastSignInTime}</p>
                 </div>
               </div>
             </div>
@@ -195,18 +517,31 @@ export default function Settings() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-black text-gray-900">Password & Authentication</h3>
+              <h3 className="text-2xl font-black text-gray-900">Password & Security</h3>
             </div>
+
+            {/* Password Error/Success */}
+            {passwordError && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-red-800 text-sm font-semibold">{passwordError}</p>
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                <p className="text-green-800 text-sm font-semibold">{passwordSuccess}</p>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div className="group">
                 <label className="block text-sm font-bold text-gray-900 mb-2">Current Password</label>
                 <input
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
                   className="w-full px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-300 outline-none text-gray-900 font-medium"
-                  placeholder="Current Password"
+                  placeholder="Enter current password"
                 />
               </div>
 
@@ -217,73 +552,145 @@ export default function Settings() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-300 outline-none text-gray-900 font-medium"
-                  placeholder="New Password"
+                  placeholder="Enter new password"
                 />
               </div>
 
               <div className="group">
-                <label className="block text-sm font-bold text-gray-900 mb-2">Confirm Password</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">Confirm New Password</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-300 outline-none text-gray-900 font-medium"
-                  placeholder="Confirm Password"
+                  placeholder="Confirm new password"
                 />
               </div>
 
-              <div className="flex items-center gap-4 flex-wrap">
-                <button
-                  onClick={changePassword}
-                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
-                >
-                  Change Password
-                </button>
-                <label className="flex items-center gap-3 px-6 py-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200 cursor-pointer hover:border-purple-500 transition-all group">
-                  <input
-                    type="checkbox"
-                    checked={twoFactorAuth}
-                    onChange={() => setTwoFactorAuth(!twoFactorAuth)}
-                    className="w-6 h-6 accent-purple-600 cursor-pointer"
-                  />
-                  <span className="text-gray-900 font-bold group-hover:text-purple-600 transition-colors">
-                    Enable Two-Factor Authentication
-                  </span>
+              <button
+                onClick={changePassword}
+                disabled={saving}
+                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 transition-all duration-300"
+              >
+                {saving ? "Changing Password..." : "Change Password"}
+              </button>
+
+              {/* 2FA Toggle */}
+              <div className="mt-6 p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-gray-900 font-bold block group-hover:text-purple-600 transition-colors">Two-Factor Authentication</span>
+                      <span className="text-sm text-gray-500">Add extra security to your account</span>
+                    </div>
+                  </div>
+                  <div className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={twoFactorAuth}
+                      onChange={() => handleToggle(setTwoFactorAuth, "twoFactorAuth", twoFactorAuth)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-pink-500"></div>
+                  </div>
                 </label>
               </div>
             </div>
           </section>
 
-          {/* Privacy Settings Section */}
+          {/* Notifications Section */}
           <section className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-black text-gray-900">Privacy Settings</h3>
+              <h3 className="text-2xl font-black text-gray-900">Notifications</h3>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 hover:border-green-500 transition-all group">
-                <span className="text-gray-900 font-bold group-hover:text-green-600 transition-colors">Clear Cache</span>
-                <button
-                  onClick={clearCache}
-                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg transform hover:scale-105 transition-all"
-                >
-                  Clear
-                </button>
+              {/* Email Notifications */}
+              <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-gray-900 font-bold block group-hover:text-indigo-600 transition-colors">Email Notifications</span>
+                      <span className="text-sm text-gray-500">Receive updates via email</span>
+                    </div>
+                  </div>
+                  <div className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={emailNotifications}
+                      onChange={() => handleToggle(setEmailNotifications, "emailNotifications", emailNotifications)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-500 peer-checked:to-purple-500"></div>
+                  </div>
+                </label>
               </div>
 
-              <div className="flex items-center justify-between p-5 bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl border-2 border-red-200 hover:border-red-500 transition-all group">
-                <span className="text-gray-900 font-bold group-hover:text-red-600 transition-colors">Delete All Accounts</span>
-                <button
-                  onClick={deleteAllAccounts}
-                  className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white rounded-xl font-bold shadow-md hover:shadow-lg transform hover:scale-105 transition-all"
-                >
-                  Delete
-                </button>
+              {/* Push Notifications */}
+              <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-gray-900 font-bold block group-hover:text-indigo-600 transition-colors">Push Notifications</span>
+                      <span className="text-sm text-gray-500">Get instant push alerts</span>
+                    </div>
+                  </div>
+                  <div className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pushNotifications}
+                      onChange={() => handleToggle(setPushNotifications, "pushNotifications", pushNotifications)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-500 peer-checked:to-purple-500"></div>
+                  </div>
+                </label>
+              </div>
+
+              {/* Report Updates */}
+              <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-gray-900 font-bold block group-hover:text-indigo-600 transition-colors">Report Updates</span>
+                      <span className="text-sm text-gray-500">Get notified on report status changes</span>
+                    </div>
+                  </div>
+                  <div className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportUpdates}
+                      onChange={() => handleToggle(setReportUpdates, "reportUpdates", reportUpdates)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-500 peer-checked:to-purple-500"></div>
+                  </div>
+                </label>
               </div>
             </div>
           </section>
@@ -299,56 +706,66 @@ export default function Settings() {
               <h3 className="text-2xl font-black text-gray-900">Display Settings</h3>
             </div>
 
-            <div className="flex items-center justify-between p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200 hover:border-yellow-500 transition-all group">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
+            <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200">
+              <label className="flex items-center justify-between cursor-pointer group">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-gray-900 font-bold block group-hover:text-yellow-600 transition-colors">Dark Mode</span>
+                    <span className="text-sm text-gray-500">Switch to dark theme</span>
+                  </div>
                 </div>
-                <span className="text-gray-900 font-bold group-hover:text-yellow-600 transition-colors">Dark Mode</span>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={darkMode}
-                  onChange={() => setDarkMode(!darkMode)}
-                  className="sr-only peer"
-                />
-                <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-yellow-500 peer-checked:to-orange-500"></div>
+                <div className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={darkMode}
+                    onChange={() => handleToggle(setDarkMode, "darkMode", darkMode)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-yellow-500 peer-checked:to-orange-500"></div>
+                </div>
               </label>
             </div>
           </section>
 
-          {/* Notifications Section */}
+          {/* Privacy Settings Section */}
           <section className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-black text-gray-900">Notifications</h3>
+              <h3 className="text-2xl font-black text-gray-900">Privacy & Data</h3>
             </div>
 
-            <div className="flex items-center justify-between p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200 hover:border-indigo-500 transition-all group">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                </div>
-                <span className="text-gray-900 font-bold group-hover:text-indigo-600 transition-colors">Enable Notifications</span>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 hover:border-green-500 transition-all group">
+                <span className="text-gray-900 font-bold group-hover:text-green-600 transition-colors">Clear Cache</span>
+                <button
+                  onClick={clearCache}
+                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg transform hover:scale-105 transition-all"
+                >
+                  Clear
+                </button>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={notifications}
-                  onChange={() => setNotifications(!notifications)}
-                  className="sr-only peer"
-                />
-                <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-500 peer-checked:to-purple-500"></div>
-              </label>
+
+              <div className="flex items-center justify-between p-5 bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl border-2 border-red-200 hover:border-red-500 transition-all group">
+                <div>
+                  <span className="text-gray-900 font-bold block group-hover:text-red-600 transition-colors">Delete Account</span>
+                  <span className="text-sm text-red-600">This action cannot be undone</span>
+                </div>
+                <button
+                  onClick={deleteAccount}
+                  className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white rounded-xl font-bold shadow-md hover:shadow-lg transform hover:scale-105 transition-all"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </section>
 
@@ -373,62 +790,6 @@ export default function Settings() {
           </section>
         </div>
       </div>
-
-      {/* Create Account Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl relative animate-scale-in overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 relative">
-              <button
-                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 flex items-center justify-center text-white font-bold transition-all transform hover:scale-110 hover:rotate-90"
-                onClick={() => setShowCreateModal(false)}
-              >
-                ✕
-              </button>
-              <h3 className="text-3xl font-black text-white">Create New Account</h3>
-            </div>
-
-            <div className="p-8 space-y-5">
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">Username</label>
-                <input
-                  type="text"
-                  placeholder="Enter username"
-                  value={newAccount.username}
-                  onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
-                  className="w-full px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-300 outline-none text-gray-900 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">Email</label>
-                <input
-                  type="email"
-                  placeholder="Enter email address"
-                  value={newAccount.email}
-                  onChange={(e) => setNewAccount({ ...newAccount, email: e.target.value })}
-                  className="w-full px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-300 outline-none text-gray-900 font-medium"
-                />
-              </div>
-
-              <div className="flex justify-end gap-4 pt-4">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-8 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-bold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={createAccount}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <style jsx>{`
         @keyframes fade-in-down {
@@ -472,21 +833,6 @@ export default function Settings() {
         
         .animate-fade-in-up {
           animation: fade-in-up 0.6s ease-out both;
-        }
-        
-        @keyframes scale-in {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out;
         }
       `}</style>
     </div>
