@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { 
+  notifyReportApproved, 
+  notifyReportRejected, 
+  notifyAdminNote, 
+  notifyReportResolved,
+  notifyReportInProgress 
+} from '../services/notificationService';
 
 const AdminDashboard = ({ user }) => {
   const [reports, setReports] = useState([]);
@@ -56,7 +63,7 @@ const AdminDashboard = ({ user }) => {
     return () => unsubscribe();
   }, [isAdmin]);
 
-  // Update report status
+  // Update report status with notification
   const updateStatus = async (reportId, newStatus) => {
     try {
       const reportRef = doc(db, 'reports', reportId);
@@ -65,13 +72,28 @@ const AdminDashboard = ({ user }) => {
         reviewedBy: user.uid,
         reviewedAt: new Date()
       });
+
+      // 🔔 SEND NOTIFICATION TO USER
+      const report = reports.find(r => r.id === reportId);
+      if (report && report.userId) {
+        // Send appropriate notification based on status
+        if (newStatus === 'approved') {
+          await notifyReportApproved(reportId, report.userId);
+        } else if (newStatus === 'rejected') {
+          await notifyReportRejected(reportId, report.userId);
+        } else if (newStatus === 'resolved') {
+          await notifyReportResolved(reportId, report.userId);
+        } else if (newStatus === 'in-review') {
+          await notifyReportInProgress(reportId, report.userId);
+        }
+      }
     } catch (error) {
       console.error('Error updating status:', error);
       alert('Failed to update status');
     }
   };
 
-  // Add admin note
+  // Add admin note with notification
   const addNote = async () => {
     if (!selectedReport || !adminNote.trim()) return;
 
@@ -83,6 +105,11 @@ const AdminDashboard = ({ user }) => {
       await updateDoc(reportRef, {
         adminNotes: newNote
       });
+      
+      // 🔔 SEND NOTIFICATION TO USER
+      if (selectedReport.userId) {
+        await notifyAdminNote(selectedReport.id, selectedReport.userId);
+      }
       
       setAdminNote('');
       setSelectedReport(null);
@@ -436,7 +463,7 @@ const AdminDashboard = ({ user }) => {
             <textarea
               value={adminNote}
               onChange={(e) => setAdminNote(e.target.value)}
-              placeholder="Enter your note..."
+              placeholder="Enter your note... (User will be notified)"
               rows="4"
               className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-gray-900 resize-none mb-4"
             />
@@ -455,7 +482,7 @@ const AdminDashboard = ({ user }) => {
                 onClick={addNote}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
               >
-                Add Note
+                Add Note & Notify User 🔔
               </button>
             </div>
           </div>

@@ -10,7 +10,7 @@ import ViewReports from './components/ViewReports';
 import MoreInfo from './components/MoreInfo';
 import HelpSupport from './components/HelpSupport';
 import Settings from './components/Settings';
-
+import NotificationCenter from "./components/NotificationCenter";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -217,6 +217,9 @@ function App() {
                     </span>
                   </div>
                 </div>
+
+                {/* 🔔 NOTIFICATION BELL - ADDED HERE! */}
+                <NotificationCenter user={user} />
 
                 {/* Hamburger Menu */}
                 <div className="relative" ref={menuRef}>

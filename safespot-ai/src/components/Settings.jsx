@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { requestNotificationPermission, sendTestNotification } from "../services/notificationService";
 
 export default function Settings({ user }) {
   
@@ -35,6 +36,7 @@ export default function Settings({ user }) {
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [testLoading, setTestLoading] = useState(false);
 
   // Load dark mode from localStorage immediately
   useEffect(() => {
@@ -309,6 +311,42 @@ export default function Settings({ user }) {
     const newValue = !currentValue;
     setter(newValue);
     await updatePreference(preference, newValue);
+  };
+
+  // Handle notification permission request
+  const handleNotificationToggle = async () => {
+    if (!pushNotifications) {
+      // Request permission
+      const granted = await requestNotificationPermission();
+      if (granted) {
+        handleToggle(setPushNotifications, "pushNotifications", pushNotifications);
+        setSuccessMessage("✅ Browser notifications enabled!");
+        setTimeout(() => setSuccessMessage(""), 3000);
+      } else {
+        setErrorMessage("❌ Notification permission denied. Enable it in browser settings.");
+        setTimeout(() => setErrorMessage(""), 5000);
+      }
+    } else {
+      handleToggle(setPushNotifications, "pushNotifications", pushNotifications);
+      setSuccessMessage("Push notifications disabled");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    }
+  };
+
+  // Send test notification
+  const handleTestNotification = async () => {
+    setTestLoading(true);
+    try {
+      await sendTestNotification(user.uid);
+      setSuccessMessage("✅ Test notification sent! Check your notifications.");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Error sending test:", error);
+      setErrorMessage("❌ Failed to send test notification");
+      setTimeout(() => setErrorMessage(""), 3000);
+    } finally {
+      setTestLoading(false);
+    }
   };
 
   // Clear cache
@@ -659,13 +697,32 @@ export default function Settings({ user }) {
                     <input
                       type="checkbox"
                       checked={pushNotifications}
-                      onChange={() => handleToggle(setPushNotifications, "pushNotifications", pushNotifications)}
+                      onChange={handleNotificationToggle}
                       className="sr-only peer"
                     />
                     <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-500 peer-checked:to-purple-500"></div>
                   </div>
                 </label>
               </div>
+
+              {/* Test Notification Button */}
+              {pushNotifications && (
+                <div className="p-5 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl border-2 border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-gray-900 font-bold block">Test Notifications</span>
+                      <span className="text-sm text-gray-600">Send yourself a test notification</span>
+                    </div>
+                    <button
+                      onClick={handleTestNotification}
+                      disabled={testLoading}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold shadow-md hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50"
+                    >
+                      {testLoading ? "Sending..." : "Test 🔔"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Report Updates */}
               <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200">
