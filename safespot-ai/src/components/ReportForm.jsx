@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import CameraCapture from './CameraCapture';
+import AICamera from './AICamera';
 import { uploadImageToCloudinary } from '../services/cloudinaryService';
 
 const ReportForm = ({ onReportSubmitted, user }) => {
@@ -12,14 +13,40 @@ const ReportForm = ({ onReportSubmitted, user }) => {
     urgency: 'medium',
     reporterName: user?.displayName || ''
   });
-  const [coordinates, setCoordinates] = useState(null); // Store lat/lng
+  const [coordinates, setCoordinates] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
   const [showCamera, setShowCamera] = useState(false);
+  const [showAICamera, setShowAICamera] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
+
+  // AI Auto-fill handler
+  const handleAIAutoFill = (aiData) => {
+    // Auto-fill all fields from AI
+    setFormData({
+      ...formData,
+      category: aiData.category,
+      description: aiData.description,
+      urgency: aiData.urgency
+    });
+    
+    // Convert base64 to file
+    fetch(aiData.imageData)
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], 'ai-capture.jpg', { type: 'image/jpeg' });
+        setImageFile(file);
+        setImagePreview(aiData.imageData);
+      });
+    
+    // Show success message
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 5000);
+  };
 
   const handleUseCurrentLocation = async () => {
     if (!navigator.geolocation) {
@@ -34,40 +61,30 @@ const ReportForm = ({ onReportSubmitted, user }) => {
       async (position) => {
         const { latitude, longitude, accuracy } = position.coords;
         
-        // Store coordinates for submission
         setCoordinates({ latitude, longitude, accuracy });
 
         try {
-          // Use OpenStreetMap Nominatim for reverse geocoding
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
             {
               headers: {
-                'User-Agent': 'SafeSpot-App' // Required by Nominatim
+                'User-Agent': 'SafeSpot-App'
               }
             }
           );
           const data = await response.json();
 
           if (data.address) {
-            // Build a more precise address from components
             const address = data.address;
             const addressParts = [];
 
-            // Add street number and name
             if (address.house_number) addressParts.push(address.house_number);
             if (address.road) addressParts.push(address.road);
-            
-            // Add neighborhood or suburb
             if (address.neighbourhood) addressParts.push(address.neighbourhood);
             else if (address.suburb) addressParts.push(address.suburb);
-            
-            // Add city
             if (address.city) addressParts.push(address.city);
             else if (address.town) addressParts.push(address.town);
             else if (address.village) addressParts.push(address.village);
-            
-            // Add state and postcode
             if (address.state) addressParts.push(address.state);
             if (address.postcode) addressParts.push(address.postcode);
 
@@ -88,7 +105,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
           }
         } catch (err) {
           console.error('Error fetching address:', err);
-          // Fallback to coordinates if geocoding fails
           setFormData((prev) => ({
             ...prev,
             location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
@@ -116,9 +132,9 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         }
       },
       {
-        enableHighAccuracy: true, // Request high accuracy
-        timeout: 10000, // 10 second timeout
-        maximumAge: 0 // Don't use cached position
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
       }
     );
   };
@@ -271,7 +287,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         status: 'pending',
         votes: 0,
         imageUrl: imageUrl,
-        // Add coordinates if available for map functionality
         ...(coordinates && {
           coordinates: {
             latitude: coordinates.latitude,
@@ -316,6 +331,13 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         />
       )}
 
+      {showAICamera && (
+        <AICamera
+          onAutoFill={handleAIAutoFill}
+          onClose={() => setShowAICamera(false)}
+        />
+      )}
+
       <div className="max-w-4xl mx-auto">
         <div className="backdrop-blur-xl bg-white/95 rounded-3xl shadow-2xl p-8 md:p-10 border border-white/20 animate-fade-in-up">
           {/* Header */}
@@ -357,7 +379,53 @@ const ReportForm = ({ onReportSubmitted, user }) => {
             </div>
           )}
 
+          {/* AI Success Message */}
+          {showSuccessMessage && (
+            <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 rounded-xl p-5 animate-slide-in-right">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-black text-green-900 mb-1">✅ AI Auto-Fill Complete!</h4>
+                  <p className="text-sm text-green-700 font-medium">
+                    Review the details below and click Submit when ready.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowSuccessMessage(false)}
+                  className="text-green-400 hover:text-green-600 hover:bg-green-100 rounded-lg p-1 transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-8">
+            {/* AI Camera Button */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={() => setShowAICamera(true)}
+                className="w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 hover:from-purple-700 hover:via-pink-700 hover:to-purple-700 text-white rounded-2xl font-black text-lg shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3 group relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                <span className="text-3xl group-hover:scale-110 transition-transform relative z-10">🤖</span>
+                <span className="relative z-10">AI Auto-Fill from Camera</span>
+                <div className="px-3 py-1 bg-white/20 rounded-lg text-xs font-bold backdrop-blur-sm relative z-10">
+                  NEW
+                </div>
+              </button>
+              <p className="text-center text-sm text-gray-600 mt-2 font-medium">
+                Point camera at issue → AI writes everything automatically!
+              </p>
+            </div>
+
             {/* Description */}
             <div className="group">
               <label htmlFor="description" className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -499,7 +567,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
                 />
               </div>
 
-              {/* Use My Current Location Button */}
               <button
                 type="button"
                 onClick={handleUseCurrentLocation}
@@ -522,7 +589,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
                 )}
               </button>
 
-              {/* Location accuracy indicator */}
               {coordinates && (
                 <div className="mt-3 flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl">
                   <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
@@ -547,7 +613,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
               
               {!imagePreview ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Take Photo Button */}
                   <button
                     type="button"
                     onClick={() => setShowCamera(true)}
@@ -562,7 +627,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
                     <p className="text-sm text-gray-500 mt-2 relative z-10">Open camera</p>
                   </button>
 
-                  {/* Upload File Button */}
                   <label className="relative flex flex-col items-center justify-center h-48 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-purple-500 hover:bg-gradient-to-br hover:from-purple-50 hover:to-pink-50 transition-all duration-300 group overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-pink-500/0 group-hover:from-purple-500/5 group-hover:to-pink-500/5 transition-all duration-300"></div>
                     <svg className="w-14 h-14 mb-3 text-gray-400 group-hover:text-purple-600 group-hover:scale-110 transition-all relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -635,7 +699,6 @@ const ReportForm = ({ onReportSubmitted, user }) => {
               disabled={isSubmitting || uploadingImage}
               className="relative w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white py-5 rounded-2xl font-black text-lg shadow-2xl hover:shadow-3xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none overflow-hidden group"
             >
-              {/* Button shine effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               
               {uploadingImage ? (
@@ -702,6 +765,21 @@ const ReportForm = ({ onReportSubmitted, user }) => {
         
         .animate-fade-in-up {
           animation: fade-in-up 0.6s ease-out;
+        }
+
+        @keyframes slide-in-right {
+          from {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        .animate-slide-in-right {
+          animation: slide-in-right 0.5s ease-out;
         }
         
         .hover\\:scale-102:hover {
