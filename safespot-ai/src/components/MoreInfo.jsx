@@ -1,292 +1,438 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { db } from '../firebase';
 
-const infoCardsTop = [
-  {
-    id: 1,
-    title: "Dashboard Overview",
-    description:
-      "Access all your reports and track their statuses easily. The dashboard presents critical information at a glance with clear categorization.",
-    icon: (
-      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-    gradient: "from-blue-500 to-cyan-500",
-  },
-  {
-    id: 2,
-    title: "Report Categories",
-    description:
-      "Reports are divided into Pending, Approved, and Rejected. Click any report to view details, priority, and updates for effective monitoring.",
-    icon: (
-      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-      </svg>
-    ),
-    gradient: "from-purple-500 to-pink-500",
-  },
-  {
-    id: 3,
-    title: "Benefits of Using the Platform",
-    description:
-      "Stay organized, prioritize urgent tasks, and gain insights from reports analytics. Save time and increase productivity efficiently.",
-    icon: (
-      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-      </svg>
-    ),
-    gradient: "from-green-500 to-emerald-500",
-  },
-];
+export default function MoreInfo({ user, onNavigate }) {
+  const [stats, setStats] = useState({
+    totalReports: 0,
+    resolvedReports: 0,
+    pendingReports: 0,
+    userReports: 0
+  });
+  const [recentReports, setRecentReports] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-const infoCardsBottom = [
-  {
-    id: 4,
-    title: "Tips for Efficient Use",
-    description:
-      "Use filters and search effectively to find reports quickly. Check timestamps and statuses regularly to stay updated.",
-    icon: (
-      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-      </svg>
-    ),
-    gradient: "from-yellow-500 to-orange-500",
-  },
-  {
-    id: 5,
-    title: "Engagement & Interaction",
-    description:
-      "Hover on cards for summaries, click for full details. Prioritize high-impact reports to make timely decisions.",
-    icon: (
-      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-      </svg>
-    ),
-    gradient: "from-indigo-500 to-purple-500",
-  },
-  {
-    id: 6,
-    title: "Security & Privacy",
-    description:
-      "All reports are securely stored and access is controlled. Your information is safe while using the platform.",
-    icon: (
-      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-      </svg>
-    ),
-    gradient: "from-red-500 to-pink-500",
-  },
-];
+  // Fetch real stats from Firebase
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Get total reports
+        const reportsRef = collection(db, 'reports');
+        const allReports = await getDocs(reportsRef);
+        const totalReports = allReports.size;
 
-export default function MoreInfo() {
-  const [selectedCard, setSelectedCard] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+        // Get resolved reports
+        const resolvedQuery = query(reportsRef, where('status', '==', 'resolved'));
+        const resolvedSnapshot = await getDocs(resolvedQuery);
+        const resolvedReports = resolvedSnapshot.size;
 
-  const openModal = (card) => {
-    setSelectedCard(card);
-    setShowModal(true);
+        // Get pending reports
+        const pendingQuery = query(reportsRef, where('status', '==', 'pending'));
+        const pendingSnapshot = await getDocs(pendingQuery);
+        const pendingReports = pendingSnapshot.size;
+
+        // Get user's reports
+        let userReports = 0;
+        if (user) {
+          const userQuery = query(reportsRef, where('reporterId', '==', user.uid));
+          const userSnapshot = await getDocs(userQuery);
+          userReports = userSnapshot.size;
+        }
+
+        // Get recent reports
+        const recentQuery = query(reportsRef, orderBy('timestamp', 'desc'), limit(5));
+        const recentSnapshot = await getDocs(recentQuery);
+        const recent = recentSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        setStats({
+          totalReports,
+          resolvedReports,
+          pendingReports,
+          userReports
+        });
+        setRecentReports(recent);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [user]);
+
+  const quickActions = [
+    {
+      id: 1,
+      title: "Submit Report",
+      description: "Report a new community issue",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+      ),
+      gradient: "from-blue-500 to-cyan-500",
+      action: () => onNavigate && onNavigate('form')
+    },
+    {
+      id: 2,
+      title: "My Reports",
+      description: "View your submitted reports",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      gradient: "from-purple-500 to-pink-500",
+      action: () => onNavigate && onNavigate('list')
+    },
+    {
+      id: 3,
+      title: "AI Camera",
+      description: "Use AI to auto-fill reports",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+      gradient: "from-green-500 to-emerald-500",
+      action: () => onNavigate && onNavigate('form')
+    },
+    {
+      id: 4,
+      title: "Get Help",
+      description: "Contact support team",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+      ),
+      gradient: "from-orange-500 to-red-500",
+      action: () => onNavigate && onNavigate('help')
+    }
+  ];
+
+  const features = [
+    {
+      id: 1,
+      title: "AI-Powered Detection",
+      description: "Point camera at an issue and AI automatically categorizes and describes it in seconds.",
+      icon: "🤖",
+      gradient: "from-blue-500 to-cyan-500"
+    },
+    {
+      id: 2,
+      title: "Real-Time Notifications",
+      description: "Get instant updates when your report status changes or when issues are resolved.",
+      icon: "🔔",
+      gradient: "from-purple-500 to-pink-500"
+    },
+    {
+      id: 3,
+      title: "Location Tracking",
+      description: "Automatic GPS detection pinpoints exact locations with street-level accuracy.",
+      icon: "📍",
+      gradient: "from-green-500 to-emerald-500"
+    },
+    {
+      id: 4,
+      title: "Secure & Private",
+      description: "Firebase authentication with encrypted storage keeps your data safe and private.",
+      icon: "🔒",
+      gradient: "from-orange-500 to-red-500"
+    }
+  ];
+
+  const getCategoryIcon = (category) => {
+    const icons = {
+      lighting: '💡',
+      vandalism: '🚨',
+      noise: '🔊',
+      waste: '🗑️',
+      infrastructure: '🏗️',
+      other: '📌'
+    };
+    return icons[category] || '📌';
   };
 
-  const closeModal = () => {
-    setSelectedCard(null);
-    setShowModal(false);
+  const getUrgencyColor = (urgency) => {
+    const colors = {
+      low: 'bg-green-100 text-green-800',
+      medium: 'bg-yellow-100 text-yellow-800',
+      high: 'bg-orange-100 text-orange-800',
+      critical: 'bg-red-100 text-red-800'
+    };
+    return colors[urgency] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getTimeAgo = (timestamp) => {
+    if (!timestamp) return 'Recently';
+    const seconds = Math.floor((new Date() - timestamp.toDate()) / 1000);
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12 animate-fade-in-down">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 shadow-2xl mb-6 group hover:scale-110 transition-transform duration-300">
             <svg className="w-10 h-10 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <h2 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-            Discover the Platform
+            Platform Overview
           </h2>
           <p className="text-gray-600 text-lg font-medium max-w-2xl mx-auto">
-            Learn how to navigate your dashboard, understand reports, and maximize the benefits of using this platform.
+            Quick actions, community stats, and everything you need to make the most of SafeSpot
           </p>
         </div>
 
-        {/* Top Cards */}
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
-          {infoCardsTop.map((card, index) => (
-            <div
-              key={card.id}
-              onClick={() => openModal(card)}
-              className="group cursor-pointer bg-white rounded-3xl shadow-xl hover:shadow-2xl p-8 transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 border border-gray-100 relative overflow-hidden animate-fade-in-up"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              {/* Gradient Background on Hover */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}></div>
-              
-              {/* Icon */}
-              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center text-white shadow-lg mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 relative z-10`}>
-                {card.icon}
-              </div>
-
-              {/* Content */}
-              <h3 className="font-black text-gray-900 text-2xl mb-3 relative z-10">{card.title}</h3>
-              <p className="text-gray-600 leading-relaxed mb-6 relative z-10 line-clamp-4">{card.description}</p>
-              
-              {/* Button */}
-              <button className={`px-6 py-3 rounded-xl bg-gradient-to-r ${card.gradient} text-white font-bold shadow-md hover:shadow-xl transition-all duration-300 transform group-hover:scale-105 relative z-10 flex items-center gap-2`}>
-                Learn More
-                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+        {/* Quick Actions */}
+        <div className="mb-12">
+          <h3 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+            <svg className="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Quick Actions
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            {quickActions.map((action, index) => (
+              <button
+                key={action.id}
+                onClick={action.action}
+                className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl p-6 transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 border border-gray-100 text-left animate-fade-in-up"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${action.gradient} flex items-center justify-center text-white shadow-lg mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300`}>
+                  {action.icon}
+                </div>
+                <h4 className="font-black text-gray-900 text-lg mb-2">{action.title}</h4>
+                <p className="text-gray-600 text-sm font-medium">{action.description}</p>
+                <div className="mt-4 flex items-center text-purple-600 font-bold text-sm group-hover:gap-2 transition-all">
+                  <span>Go</span>
+                  <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
               </button>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* Bottom Cards */}
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
-          {infoCardsBottom.map((card, index) => (
-            <div
-              key={card.id}
-              onClick={() => openModal(card)}
-              className="group cursor-pointer bg-white rounded-3xl shadow-lg hover:shadow-2xl p-8 transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 border border-gray-100 relative overflow-hidden animate-fade-in-up"
-              style={{ animationDelay: `${(index + 3) * 0.1}s` }}
-            >
-              {/* Gradient Background on Hover */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}></div>
-              
-              {/* Icon */}
-              <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center text-white shadow-lg mb-5 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 relative z-10`}>
-                {card.icon}
+        {/* Community Stats */}
+        <div className="mb-12">
+          <h3 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+            <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Community Impact
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-fade-in">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-black text-gray-900">
+                    {loading ? '...' : stats.totalReports}
+                  </p>
+                  <p className="text-sm font-semibold text-gray-600">Total Reports</p>
+                </div>
               </div>
-
-              {/* Content */}
-              <h3 className="font-bold text-gray-900 text-xl mb-3 relative z-10">{card.title}</h3>
-              <p className="text-gray-600 leading-relaxed mb-5 relative z-10 line-clamp-4">{card.description}</p>
-              
-              {/* Button */}
-              <button className="px-6 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold shadow-md hover:shadow-xl transition-all duration-300 transform group-hover:scale-105 relative z-10 flex items-center gap-2">
-                Learn More
-                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full" style={{ width: '100%' }}></div>
+              </div>
             </div>
-          ))}
+
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-fade-in">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-black text-gray-900">
+                    {loading ? '...' : stats.resolvedReports}
+                  </p>
+                  <p className="text-sm font-semibold text-gray-600">Resolved</p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full" 
+                  style={{ width: `${stats.totalReports ? (stats.resolvedReports / stats.totalReports) * 100 : 0}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-fade-in">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center shadow-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-black text-gray-900">
+                    {loading ? '...' : stats.pendingReports}
+                  </p>
+                  <p className="text-sm font-semibold text-gray-600">Pending</p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-yellow-500 to-orange-500 h-2 rounded-full" 
+                  style={{ width: `${stats.totalReports ? (stats.pendingReports / stats.totalReports) * 100 : 0}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-fade-in">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-black text-gray-900">
+                    {loading ? '...' : stats.userReports}
+                  </p>
+                  <p className="text-sm font-semibold text-gray-600">Your Reports</p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full" 
+                  style={{ width: `${stats.totalReports ? (stats.userReports / stats.totalReports) * 100 : 0}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="mb-12">
+          <h3 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+            <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Recent Activity
+          </h3>
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-gray-600 font-semibold">Loading recent reports...</p>
+              </div>
+            ) : recentReports.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-gray-600 font-semibold">No reports yet. Be the first to report an issue!</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {recentReports.map((report, index) => (
+                  <div key={report.id} className="p-6 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div className="text-3xl">{getCategoryIcon(report.category)}</div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-bold text-gray-900 capitalize">{report.category}</h4>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${getUrgencyColor(report.urgency)}`}>
+                            {report.urgency}
+                          </span>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-2 line-clamp-2">{report.description}</p>
+                        <div className="flex items-center gap-4 text-xs text-gray-500 font-semibold">
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            {report.location.substring(0, 30)}...
+                          </span>
+                          <span>{getTimeAgo(report.timestamp)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Features */}
+        <div className="mb-12">
+          <h3 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+            <svg className="w-7 h-7 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            Key Features
+          </h3>
+          <div className="grid md:grid-cols-2 gap-6">
+            {features.map((feature, index) => (
+              <div
+                key={feature.id}
+                className="bg-white rounded-2xl shadow-lg hover:shadow-xl p-6 border border-gray-100 transition-all duration-300 transform hover:scale-105 animate-fade-in-up"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                <div className="flex items-start gap-4">
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center text-2xl shadow-lg flex-shrink-0`}>
+                    {feature.icon}
+                  </div>
+                  <div>
+                    <h4 className="font-black text-gray-900 text-lg mb-2">{feature.title}</h4>
+                    <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* CTA Section */}
         <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-3xl shadow-2xl p-10 text-white relative overflow-hidden animate-fade-in">
-          {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
           
           <div className="relative z-10 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <h3 className="text-3xl font-black mb-4">Ready to Get Started?</h3>
+            <h3 className="text-3xl font-black mb-4">Ready to Make an Impact?</h3>
             <p className="text-blue-100 text-lg mb-8 max-w-2xl mx-auto">
-              Engage with these cards to understand reports, prioritize tasks, and make the most out of your workflow.
+              Join our community in making neighborhoods safer. Every report matters!
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
-              <button className="px-8 py-4 bg-white text-purple-600 rounded-xl font-black shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all">
-                Start Exploring
+              <button
+                onClick={() => onNavigate && onNavigate('form')}
+                className="px-8 py-4 bg-white text-purple-600 rounded-xl font-black shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Submit Your First Report
               </button>
-              <button className="px-8 py-4 bg-white/10 backdrop-blur-sm border-2 border-white/30 text-white rounded-xl font-black hover:bg-white/20 transition-all">
-                View Documentation
+              <button
+                onClick={() => onNavigate && onNavigate('help')}
+                className="px-8 py-4 bg-white/10 backdrop-blur-sm border-2 border-white/30 text-white rounded-xl font-black hover:bg-white/20 transition-all"
+              >
+                Learn More
               </button>
             </div>
           </div>
         </div>
-
-        {/* Features Grid */}
-        <div className="mt-12 grid md:grid-cols-4 gap-6 animate-fade-in">
-          {[
-            { icon: "🚀", title: "Fast", desc: "Lightning speed" },
-            { icon: "🔒", title: "Secure", desc: "Protected data" },
-            { icon: "📊", title: "Analytics", desc: "Deep insights" },
-            { icon: "💡", title: "Smart", desc: "AI-powered" },
-          ].map((feature, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl hover:scale-105 transition-all duration-300"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              <div className="text-4xl mb-3">{feature.icon}</div>
-              <h4 className="font-black text-gray-900 mb-1">{feature.title}</h4>
-              <p className="text-gray-600 text-sm font-medium">{feature.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Modal */}
-        {showModal && selectedCard && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl relative animate-scale-in overflow-hidden">
-              {/* Modal Header with Gradient */}
-              <div className={`bg-gradient-to-r ${selectedCard.gradient} p-8 relative`}>
-                <button
-                  className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 flex items-center justify-center text-white font-bold transition-all transform hover:scale-110 hover:rotate-90"
-                  onClick={closeModal}
-                >
-                  ✕
-                </button>
-                
-                {/* Icon */}
-                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white mb-4">
-                  {selectedCard.icon}
-                </div>
-                
-                <h3 className="text-3xl font-black text-white mb-2">{selectedCard.title}</h3>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-8">
-                <p className="text-gray-700 text-lg leading-relaxed mb-6">{selectedCard.description}</p>
-                
-                {/* Additional Info */}
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 mb-6">
-                  <h4 className="font-bold text-gray-900 mb-3">Key Features:</h4>
-                  <ul className="space-y-2">
-                    <li className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700 font-medium">Easy to use and intuitive interface</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700 font-medium">Real-time updates and notifications</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700 font-medium">Secure and reliable performance</span>
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={closeModal}
-                    className="px-6 py-3 rounded-xl border-2 border-gray-300 font-bold hover:bg-gray-50 transition-all"
-                  >
-                    Close
-                  </button>
-                  <button className={`px-6 py-3 rounded-xl bg-gradient-to-r ${selectedCard.gradient} text-white font-bold shadow-lg hover:shadow-xl transition-all transform hover:scale-105`}>
-                    Get Started
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <style jsx>{`
@@ -315,7 +461,7 @@ export default function MoreInfo() {
         }
         
         .animate-fade-in {
-          animation: fade-in 0.6s ease-out 0.6s both;
+          animation: fade-in 0.6s ease-out 0.2s both;
         }
         
         @keyframes fade-in-up {
@@ -331,21 +477,6 @@ export default function MoreInfo() {
         
         .animate-fade-in-up {
           animation: fade-in-up 0.6s ease-out both;
-        }
-        
-        @keyframes scale-in {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out;
         }
       `}</style>
     </div>

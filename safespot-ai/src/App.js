@@ -376,7 +376,7 @@ function App() {
           {activeTab === 'form' && <ReportForm onReportSubmitted={handleReportSubmitted} user={user} />}
           {activeTab === 'db' && <ReportList user={user} />}
           {activeTab === 'list' && <ViewReports user={user} />}
-          {activeTab === 'info' && <MoreInfo user={user} />}
+          {activeTab === 'info' && <MoreInfo user={user} onNavigate={navigateTo} />}
           {activeTab === 'help' && <HelpSupport user={user} />}
           {activeTab === 'settings' && <Settings user={user} />}
           {activeTab === 'admin' && <AdminDashboard user={user} />}

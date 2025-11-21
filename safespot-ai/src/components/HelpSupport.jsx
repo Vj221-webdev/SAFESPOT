@@ -3,67 +3,67 @@ import React, { useState } from "react";
 const faqs = [
   {
     id: 1,
-    question: "How do I view my reports?",
+    question: "How do I submit a report?",
     answer:
-      "Go to the 'View Reports' page from the dashboard. Use filters or search to quickly find specific reports.",
+      "Click the 'Report' button in the navigation. Fill out the form with details about the issue. You can use the AI Auto-Fill camera feature to automatically detect and describe the issue, or manually enter information. Add photos and location, then submit!",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
       </svg>
     ),
   },
   {
     id: 2,
-    question: "How can I manage report priorities?",
+    question: "How does the AI Auto-Fill camera work?",
     answer:
-      "Click on 'Manage Reports'. You can update priority levels: Normal, High, Urgent. High-priority reports are highlighted for easy tracking.",
+      "Click 'AI Auto-Fill from Camera' when reporting. Point your camera at the issue (pothole, graffiti, etc.), capture the photo, and our AI will automatically detect the issue type, write a detailed description, and set the urgency level. You can edit any details before submitting.",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
       </svg>
     ),
   },
   {
     id: 3,
-    question: "Can I filter reports by status?",
+    question: "Can I track my submitted reports?",
     answer:
-      "Yes! You can filter reports by Pending, Approved, or Rejected using the status filter at the top of the View Reports page.",
+      "Yes! Go to 'View Reports' and use the search or filters to find your reports. You'll see the current status (Pending, In Progress, Resolved, or Rejected) and any updates. You'll also receive real-time notifications when your report status changes.",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
       </svg>
     ),
   },
   {
     id: 4,
-    question: "How do I contact support?",
+    question: "Can I edit or delete my reports?",
     answer:
-      "You can contact support by emailing support@safespot.com or using the live chat feature available on the dashboard.",
+      "Yes! Go to 'View Reports', find your report, and click the edit or delete button. You have full control over your submitted reports. Note: You can only edit reports that haven't been reviewed yet.",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
       </svg>
     ),
   },
   {
     id: 5,
-    question: "Is my data secure?",
+    question: "How do I enable notifications?",
     answer:
-      "Absolutely! We use Firebase Authentication and industry-standard encryption to protect your data. Your reports are stored securely and only accessible to authorized users.",
+      "Click the bell icon in the navigation bar to open the notification center. Click 'Enable Notifications' and allow browser permissions. You'll receive real-time alerts when your report status changes or when there are updates in your area.",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
       </svg>
     ),
   },
   {
     id: 6,
-    question: "Can I edit or delete my reports?",
+    question: "Is my data secure?",
     answer:
-      "Yes! Go to 'View Reports', find your report, and click the edit or delete button. You have full control over your submitted reports.",
+      "Absolutely! We use Firebase Authentication with industry-standard encryption to protect your data. Your reports are stored securely in the cloud, and only authorized users can access admin features. We never share your personal information with third parties.",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
       </svg>
     ),
   },
@@ -74,6 +74,16 @@ export default function HelpSupport() {
 
   const toggleFAQ = (id) => {
     setExpandedFAQ(expandedFAQ === id ? null : id);
+  };
+
+  const openLiveChat = () => {
+    if (window.Tawk_API && window.Tawk_API.maximize) {
+      window.Tawk_API.maximize();
+    } else {
+      // Fallback if Tawk is not loaded
+      console.log('Tawk.to chat not available');
+      alert('Live chat is loading... Please try again in a moment or email us at vijaychhetri@gmail.com');
+    }
   };
 
   return (
@@ -90,53 +100,8 @@ export default function HelpSupport() {
             Help & Support
           </h2>
           <p className="text-gray-600 text-lg font-medium max-w-2xl mx-auto">
-            Find answers to common questions, tips on using the platform, or reach out to our support team.
+            Find answers to common questions or reach out to our support team for assistance.
           </p>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 group">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-gray-900">24/7</p>
-                <p className="text-sm font-semibold text-gray-600">Support Available</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 group">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-gray-900">&lt;5min</p>
-                <p className="text-sm font-semibold text-gray-600">Response Time</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 group">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-gray-900">98%</p>
-                <p className="text-sm font-semibold text-gray-600">Satisfaction Rate</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* FAQ Section */}
@@ -202,18 +167,22 @@ export default function HelpSupport() {
             <div className="flex items-center gap-3 mb-6">
               <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
               </div>
               <h3 className="text-3xl font-black">Still Need Help?</h3>
             </div>
             
             <p className="text-blue-100 text-lg mb-8 font-medium">
-              Our support team is here to help you with any questions or issues.
+              Can't find what you're looking for? Our support team is here to help you with any questions or issues.
             </p>
 
             <div className="grid md:grid-cols-2 gap-6 mb-8">
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300 group">
+              {/* Email Support Card */}
+              <a 
+                href="mailto:vijaychhetri@gmail.com"
+                className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300 group block"
+              >
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -222,13 +191,14 @@ export default function HelpSupport() {
                   </div>
                   <div>
                     <p className="font-bold text-white mb-1">Email Support</p>
-                    <a href="mailto:support@safespot.com" className="text-blue-100 hover:text-white font-semibold transition-colors">
-                      support@safespot.com
-                    </a>
+                    <p className="text-blue-100 hover:text-white font-semibold transition-colors break-all">
+                      vijaychhetri@gmail.com
+                    </p>
                   </div>
                 </div>
-              </div>
+              </a>
 
+              {/* Live Chat Card */}
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300 group">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
@@ -238,13 +208,17 @@ export default function HelpSupport() {
                   </div>
                   <div>
                     <p className="font-bold text-white mb-1">Live Chat</p>
-                    <p className="text-blue-100 font-medium">Available 24/7</p>
+                    <p className="text-blue-100 font-medium">Get instant help</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <button className="w-full md:w-auto px-8 py-4 bg-white text-purple-600 font-black text-lg rounded-xl hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 group">
+            {/* Open Live Chat Button */}
+            <button 
+              onClick={openLiveChat}
+              className="w-full md:w-auto px-8 py-4 bg-white text-purple-600 font-black text-lg rounded-xl hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 group"
+            >
               <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
@@ -253,36 +227,20 @@ export default function HelpSupport() {
           </div>
         </div>
 
-        {/* Additional Resources */}
-        <div className="mt-12 grid md:grid-cols-3 gap-6 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 group">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        {/* Emergency Notice */}
+        <div className="mt-8 bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 rounded-2xl p-6 animate-fade-in">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
               </svg>
             </div>
-            <h4 className="font-bold text-gray-900 text-lg mb-2">Documentation</h4>
-            <p className="text-gray-600 text-sm">Comprehensive guides and tutorials</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 group">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
+            <div>
+              <p className="text-sm font-black text-red-900 mb-2">🚨 Emergency Alert</p>
+              <p className="text-sm text-red-800 leading-relaxed">
+                For life-threatening emergencies, call <strong className="text-red-900 text-lg">911</strong> immediately. SafeSpot is for non-emergency community safety issues only.
+              </p>
             </div>
-            <h4 className="font-bold text-gray-900 text-lg mb-2">Video Tutorials</h4>
-            <p className="text-gray-600 text-sm">Step-by-step video guides</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300 group">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <h4 className="font-bold text-gray-900 text-lg mb-2">Community Forum</h4>
-            <p className="text-gray-600 text-sm">Connect with other users</p>
           </div>
         </div>
       </div>
