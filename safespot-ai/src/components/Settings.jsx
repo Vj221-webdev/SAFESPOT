@@ -84,13 +84,68 @@ export default function Settings({ user }) {
         style.innerHTML = `
           body.dark-mode { background: #0f172a !important; }
           body.dark-mode * { border-color: #334155 !important; }
-          body.dark-mode .bg-white { background: #1e293b !important; color: #f1f5f9 !important; }
+          body.dark-mode .bg-white { background: #1e293b !important; }
           body.dark-mode .bg-gradient-to-br.from-gray-50 { background: #0f172a !important; }
-          body.dark-mode .text-gray-900 { color: #f1f5f9 !important; }
-          body.dark-mode .text-gray-700 { color: #cbd5e1 !important; }
-          body.dark-mode .text-gray-600 { color: #94a3b8 !important; }
-          body.dark-mode input { background: #0f172a !important; color: #f1f5f9 !important; border-color: #334155 !important; }
-          body.dark-mode .border-gray-200 { border-color: #334155 !important; }
+          
+          /* ALL TEXT ELEMENTS - BRIGHT WHITE */
+          body.dark-mode .text-gray-900,
+          body.dark-mode h1,
+          body.dark-mode h2,
+          body.dark-mode h3,
+          body.dark-mode h4,
+          body.dark-mode span,
+          body.dark-mode p,
+          body.dark-mode label,
+          body.dark-mode button,
+          body.dark-mode div { 
+            color: #f1f5f9 !important;
+          }
+          
+          body.dark-mode .text-gray-700 { 
+            color: #e2e8f0 !important;
+          }
+          
+          body.dark-mode .text-gray-600 { 
+            color: #cbd5e1 !important;
+          }
+          
+          body.dark-mode .text-gray-500 { 
+            color: #94a3b8 !important;
+          }
+          
+          /* Inputs */
+          body.dark-mode input { 
+            background: #0f172a !important; 
+            color: #f1f5f9 !important; 
+            border-color: #334155 !important; 
+          }
+          
+          body.dark-mode input::placeholder {
+            color: #64748b !important;
+          }
+          
+          /* Borders */
+          body.dark-mode .border-gray-200,
+          body.dark-mode .border-gray-100 { 
+            border-color: #334155 !important; 
+          }
+          
+          /* Gradient backgrounds - make them darker */
+          body.dark-mode .from-blue-50,
+          body.dark-mode .from-purple-50,
+          body.dark-mode .from-yellow-50,
+          body.dark-mode .from-green-50,
+          body.dark-mode .from-red-50,
+          body.dark-mode .from-indigo-50,
+          body.dark-mode .from-gray-50 {
+            background: #1e293b !important;
+          }
+          
+          /* Keep button text visible */
+          body.dark-mode button.bg-gradient-to-r,
+          body.dark-mode button[class*="bg-gradient"] {
+            color: white !important;
+          }
         `;
         document.head.appendChild(style);
       }
