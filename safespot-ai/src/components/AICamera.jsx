@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAuth } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { db } from '../firebase'; // Adjust path to your firebase config
+import { db } from '../firebase';
 
 export default function AICamera({ onAutoFill, onClose }) {
   const videoRef = useRef(null);
@@ -10,45 +10,61 @@ export default function AICamera({ onAutoFill, onClose }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [analysisStage, setAnalysisStage] = useState('');
-  const [userVerified, setUserVerified] = useState(false);
+  const [userStatus, setUserStatus] = useState({ ready: false, message: '' });
   const [userLocation, setUserLocation] = useState(null);
   const [captureMetadata, setCaptureMetadata] = useState(null);
 
-  // Security: Check user verification status
+  // SIMPLIFIED Security: Just check if logged in and not banned
   useEffect(() => {
     const checkUserStatus = async () => {
       const auth = getAuth();
       const user = auth.currentUser;
       
+      // Must be logged in
       if (!user) {
-        setError('You must be logged in to use AI detection');
+        setUserStatus({ 
+          ready: false, 
+          message: '🔒 You must be logged in to use AI detection' 
+        });
         return;
       }
 
-      // Check if user email is verified
-      if (!user.emailVerified) {
-        setError('Please verify your email before using AI features');
-        return;
+      // Check if user is banned (optional - only if you have this field)
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userData = userDoc.data();
+        
+        if (userData?.banned) {
+          setUserStatus({ 
+            ready: false, 
+            message: '⛔ Your account has been suspended from using this feature' 
+          });
+          return;
+        }
+
+        // Check usage limits (optional - prevent spam)
+        if (userData?.aiUsageCount > 50) {
+          setUserStatus({ 
+            ready: false, 
+            message: '⚠️ Daily AI usage limit reached. Try again tomorrow.' 
+          });
+          return;
+        }
+      } catch (error) {
+        console.warn('Could not check user status:', error);
+        // Continue anyway - don't block user for database errors
       }
 
-      // Optional: Check user reputation/trust score
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userData = userDoc.data();
-      
-      if (userData?.banned) {
-        setError('Your account has been suspended from using this feature');
-        return;
-      }
-
-      setUserVerified(true);
+      // User is good to go!
+      setUserStatus({ ready: true, message: '' });
     };
 
     checkUserStatus();
   }, []);
 
-  // Get user's precise location for accountability
+  // Get GPS location (optional but recommended)
   useEffect(() => {
-    if (userVerified && navigator.geolocation) {
+    if (userStatus.ready && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setUserLocation({
@@ -60,19 +76,20 @@ export default function AICamera({ onAutoFill, onClose }) {
         },
         (error) => {
           console.warn('Location access denied:', error);
-          // Continue without location but log it
+          // Don't block - just log warning
+          setUserLocation({ denied: true });
         },
         { enableHighAccuracy: true }
       );
     }
-  }, [userVerified]);
+  }, [userStatus.ready]);
 
-  // Start camera with watermarking
+  // Start camera
   useEffect(() => {
     let mounted = true;
     
     const startCamera = async () => {
-      if (!userVerified) return;
+      if (!userStatus.ready) return;
 
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -89,10 +106,11 @@ export default function AICamera({ onAutoFill, onClose }) {
       } catch (error) {
         console.error('Camera error:', error);
         if (mounted) {
-          setError('Could not access camera. Please allow camera permissions.');
+          setError('📷 Could not access camera. Please allow camera permissions.');
         }
       }
     };
+    
     startCamera();
 
     return () => {
@@ -101,11 +119,11 @@ export default function AICamera({ onAutoFill, onClose }) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [userVerified, stream]);
+  }, [userStatus.ready, stream]);
 
-  // Advanced capture with security metadata
+  // Main capture and analysis function
   const captureAndAnalyze = async () => {
-    if (!videoRef.current || !userVerified) return;
+    if (!videoRef.current || !userStatus.ready) return;
 
     setAnalyzing(true);
     setError(null);
@@ -114,9 +132,9 @@ export default function AICamera({ onAutoFill, onClose }) {
       const auth = getAuth();
       const user = auth.currentUser;
 
-      setAnalysisStage('Securing capture...');
+      setAnalysisStage('Capturing image...');
       
-      // Create timestamped, watermarked image
+      // Create canvas for watermarked image
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
@@ -125,21 +143,25 @@ export default function AICamera({ onAutoFill, onClose }) {
       // Draw video frame
       ctx.drawImage(videoRef.current, 0, 0);
       
-      // Add security watermark (timestamp + user ID hash)
+      // Add professional watermark
       const timestamp = new Date().toISOString();
       const userHash = btoa(user.uid).substring(0, 8);
       
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(10, canvas.height - 80, 400, 70);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(10, canvas.height - 90, 450, 80);
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 14px Arial';
-      ctx.fillText(`SafeSpot Report - ${timestamp}`, 20, canvas.height - 55);
-      ctx.fillText(`Reporter ID: ${userHash}`, 20, canvas.height - 35);
-      ctx.fillText(`GPS: ${userLocation ? 'Verified' : 'N/A'}`, 20, canvas.height - 15);
+      ctx.font = 'bold 16px Arial';
+      ctx.fillText(`SafeSpot Community Report`, 20, canvas.height - 65);
+      ctx.font = '14px Arial';
+      ctx.fillText(`📅 ${new Date().toLocaleString()}`, 20, canvas.height - 45);
+      ctx.fillText(`🆔 Reporter: ${userHash}`, 20, canvas.height - 25);
+      if (userLocation && !userLocation.denied) {
+        ctx.fillText(`📍 GPS Verified`, 280, canvas.height - 25);
+      }
 
       const imageData = canvas.toDataURL('image/jpeg', 0.95);
 
-      // Store metadata for audit trail
+      // Create metadata for audit trail
       const metadata = {
         captureTime: timestamp,
         userId: user.uid,
@@ -151,23 +173,26 @@ export default function AICamera({ onAutoFill, onClose }) {
 
       setCaptureMetadata(metadata);
 
-      // Log this capture attempt to Firebase for audit
+      // Log this capture for audit trail
       await logCaptureAttempt(metadata);
+
+      // Increment usage counter (optional - for rate limiting)
+      await incrementUsageCounter(user.uid);
 
       // Get API key
       const apiKey = process.env.REACT_APP_GEMINI_KEY;
       if (!apiKey) {
-        throw new Error('AI service unavailable. Please contact administrator.');
+        throw new Error('AI service is not configured. Please contact administrator.');
       }
 
-      setAnalysisStage('AI analyzing with ethical guidelines...');
+      setAnalysisStage('AI analyzing scene...');
 
-      // Initialize Gemini with safety settings
+      // Initialize Gemini AI
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ 
         model: "gemini-1.5-flash",
         generationConfig: {
-          temperature: 0.3, // Lower for more factual analysis
+          temperature: 0.3,
           topK: 32,
           topP: 1,
         },
@@ -294,12 +319,12 @@ Return ONLY valid JSON. No markdown. No extra text.`;
 
       const analysis = JSON.parse(cleanJson);
 
-      // Security validation
+      // Ethics validation
       if (analysis.ethicsCheck !== "YES") {
         throw new Error('AI failed ethics check. Report blocked for review.');
       }
 
-      // Check for emergency
+      // Emergency check
       if (analysis.requiresEmergencyServices) {
         alert('⚠️ EMERGENCY DETECTED\n\nPlease call 911 immediately!\n\nThis app is for non-emergency community issues only.');
         handleClose();
@@ -317,9 +342,9 @@ Return ONLY valid JSON. No markdown. No extra text.`;
         analysis.category = 'no_issue';
       }
 
-      // If no issue detected, inform user
+      // No issue detected
       if (analysis.category === 'no_issue') {
-        alert('ℹ️ No Issue Detected\n\nThe AI could not identify a clear safety or infrastructure issue in this image.\n\nPlease try:\n- Getting closer to the issue\n- Better lighting\n- Different angle\n\nOr fill the form manually.');
+        alert('ℹ️ No Issue Detected\n\nThe AI could not identify a clear safety or infrastructure issue in this image.\n\nPlease try:\n• Getting closer to the issue\n• Better lighting\n• Different angle\n\nOr fill the form manually.');
         setAnalyzing(false);
         return;
       }
@@ -329,7 +354,7 @@ Return ONLY valid JSON. No markdown. No extra text.`;
 
       setAnalysisStage('Complete!');
 
-      // Enhanced description with disclaimers
+      // Build enhanced description
       let enhancedDescription = `${analysis.description}`;
       
       if (analysis.moderatorNote) {
@@ -337,9 +362,9 @@ Return ONLY valid JSON. No markdown. No extra text.`;
       }
 
       enhancedDescription += `\n\n📸 AI-Generated Report | Evidence Quality: ${analysis.evidenceQuality}`;
-      enhancedDescription += `\n✓ Capture verified at ${new Date().toLocaleString()}`;
+      enhancedDescription += `\n✓ Report captured at ${new Date().toLocaleString()}`;
 
-      // Pass data with security metadata
+      // Pass data to parent component
       onAutoFill({
         category: analysis.category,
         description: enhancedDescription,
@@ -347,7 +372,7 @@ Return ONLY valid JSON. No markdown. No extra text.`;
         imageData: imageData,
         aiConfidence: analysis.evidenceQuality,
         aiSuggestion: analysis.suggestedAction || '',
-        metadata: metadata, // For audit trail
+        metadata: metadata,
         aiGenerated: true,
         requiresModeration: analysis.evidenceQuality === 'unclear'
       });
@@ -371,24 +396,24 @@ Return ONLY valid JSON. No markdown. No extra text.`;
         error.message.includes('ethics') 
           ? '🚫 Report blocked: Failed ethical guidelines check' 
           : error.message.includes('API') 
-          ? 'AI service unavailable. Please fill manually.' 
-          : 'Analysis failed. Please try again or fill manually.'
+          ? '⚠️ AI service unavailable. Please fill manually.' 
+          : '❌ Analysis failed. Please try again or fill manually.'
       );
       setAnalyzing(false);
       setAnalysisStage('');
     }
   };
 
-  // Generate hash for image integrity
+  // Helper: Generate image hash for integrity
   const generateImageHash = async (imageData) => {
     const encoder = new TextEncoder();
-    const data = encoder.encode(imageData.substring(0, 1000)); // Sample hash
+    const data = encoder.encode(imageData.substring(0, 1000));
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
   };
 
-  // Log capture attempt for audit trail
+  // Helper: Log capture attempt
   const logCaptureAttempt = async (metadata) => {
     try {
       const auth = getAuth();
@@ -404,7 +429,7 @@ Return ONLY valid JSON. No markdown. No extra text.`;
     }
   };
 
-  // Log successful analysis
+  // Helper: Log successful analysis
   const logSuccessfulAnalysis = async (metadata, analysis) => {
     try {
       const auth = getAuth();
@@ -426,7 +451,7 @@ Return ONLY valid JSON. No markdown. No extra text.`;
     }
   };
 
-  // Log failed analysis
+  // Helper: Log failed analysis
   const logFailedAnalysis = async (metadata, errorMessage) => {
     try {
       const auth = getAuth();
@@ -443,6 +468,24 @@ Return ONLY valid JSON. No markdown. No extra text.`;
     }
   };
 
+  // Helper: Increment usage counter (prevents spam)
+  const incrementUsageCounter = async (userId) => {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const counterDoc = doc(db, 'ai_usage_counters', `${userId}_${today}`);
+      
+      const counterSnap = await getDoc(counterDoc);
+      const currentCount = counterSnap.exists() ? counterSnap.data().count : 0;
+      
+      await setDoc(counterDoc, {
+        count: currentCount + 1,
+        lastUpdated: serverTimestamp()
+      });
+    } catch (error) {
+      console.warn('Failed to update counter:', error);
+    }
+  };
+
   const handleClose = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -450,19 +493,19 @@ Return ONLY valid JSON. No markdown. No extra text.`;
     onClose();
   };
 
-  // Block if not verified
-  if (!userVerified) {
+  // Block if not ready
+  if (!userStatus.ready) {
     return (
-      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl p-8 max-w-md text-center">
+      <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-6">
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-8 max-w-md text-center shadow-2xl">
           <div className="text-6xl mb-4">🔒</div>
-          <h3 className="text-2xl font-black mb-3 text-gray-900">Verification Required</h3>
-          <p className="text-gray-600 mb-6">
-            {error || 'Please verify your email to use AI detection features.'}
+          <h3 className="text-2xl font-black mb-3 text-white">Access Required</h3>
+          <p className="text-gray-300 mb-6">
+            {userStatus.message}
           </p>
           <button
             onClick={handleClose}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold"
+            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-purple-700 transition-all"
           >
             Close
           </button>
@@ -473,24 +516,24 @@ Return ONLY valid JSON. No markdown. No extra text.`;
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* Security Badge Header */}
+      {/* Professional Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/95 to-transparent">
         <div className="p-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">🔒</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-2xl">🤖</span>
               </div>
               <div>
-                <h3 className="text-white font-black text-lg flex items-center gap-2">
-                  Verified AI Detection
+                <h3 className="text-white font-black text-lg">
+                  AI-Powered Detection
                 </h3>
-                <p className="text-white/70 text-xs">Ethical • Audited • Accountable</p>
+                <p className="text-white/70 text-xs">Evidence-based • Ethical • Secure</p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm text-white flex items-center justify-center hover:bg-white/30 transition-all"
+              className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm text-white flex items-center justify-center hover:bg-white/20 transition-all"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -498,25 +541,25 @@ Return ONLY valid JSON. No markdown. No extra text.`;
             </button>
           </div>
           
-          {/* Security indicators */}
-          <div className="flex items-center gap-2 text-xs">
-            <div className="bg-green-500/20 text-green-300 px-2 py-1 rounded-md flex items-center gap-1">
-              <span>✓</span> Email Verified
+          {/* Status Badges */}
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <div className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full flex items-center gap-1 border border-green-500/30">
+              <span>✓</span> Logged In
             </div>
-            {userLocation && (
-              <div className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded-md flex items-center gap-1">
-                <span>📍</span> GPS Verified
+            {userLocation && !userLocation.denied && (
+              <div className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full flex items-center gap-1 border border-blue-500/30">
+                <span>📍</span> GPS Active
               </div>
             )}
-            <div className="bg-purple-500/20 text-purple-300 px-2 py-1 rounded-md flex items-center gap-1">
-              <span>⏱️</span> Timestamped
+            <div className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full flex items-center gap-1 border border-purple-500/30">
+              <span>🛡️</span> Protected
             </div>
           </div>
         </div>
       </div>
 
       {/* Camera View */}
-      <div className="flex-1 relative mt-24">
+      <div className="flex-1 relative mt-28">
         <video
           ref={videoRef}
           autoPlay
@@ -525,90 +568,99 @@ Return ONLY valid JSON. No markdown. No extra text.`;
           className="w-full h-full object-cover"
         />
 
-        {/* Ethical AI Badge */}
-        <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm border border-green-500/50 rounded-xl px-3 py-2">
+        {/* Ethics Badge */}
+        <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-md border border-green-500/30 rounded-xl px-4 py-2 shadow-xl">
           <div className="flex items-center gap-2 text-xs text-white">
-            <span className="text-green-400">🛡️</span>
-            <span className="font-bold">Anti-Bias AI</span>
+            <span className="text-green-400 text-lg">🛡️</span>
+            <div>
+              <p className="font-bold">Ethical AI</p>
+              <p className="text-white/60 text-xs">Evidence-only detection</p>
+            </div>
           </div>
-          <p className="text-white/60 text-xs mt-1">No profiling • Evidence only</p>
         </div>
 
-        {/* Enhanced crosshair */}
+        {/* Crosshair Frame */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="relative">
-            <div className="w-80 h-80 border-4 border-white/30 rounded-2xl relative">
-              <div className="absolute -top-1 -left-1 w-16 h-16 border-t-4 border-l-4 border-green-500 rounded-tl-xl"></div>
-              <div className="absolute -top-1 -right-1 w-16 h-16 border-t-4 border-r-4 border-green-500 rounded-tr-xl"></div>
-              <div className="absolute -bottom-1 -left-1 w-16 h-16 border-b-4 border-l-4 border-green-500 rounded-bl-xl"></div>
-              <div className="absolute -bottom-1 -right-1 w-16 h-16 border-b-4 border-r-4 border-green-500 rounded-br-xl"></div>
+            <div className="w-80 h-80 border-4 border-white/20 rounded-3xl relative">
+              {/* Corner brackets */}
+              <div className="absolute -top-1 -left-1 w-20 h-20 border-t-4 border-l-4 border-blue-500 rounded-tl-2xl"></div>
+              <div className="absolute -top-1 -right-1 w-20 h-20 border-t-4 border-r-4 border-blue-500 rounded-tr-2xl"></div>
+              <div className="absolute -bottom-1 -left-1 w-20 h-20 border-b-4 border-l-4 border-blue-500 rounded-bl-2xl"></div>
+              <div className="absolute -bottom-1 -right-1 w-20 h-20 border-b-4 border-r-4 border-blue-500 rounded-br-2xl"></div>
               
+              {/* Center dot */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <div className="w-4 h-4 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+                <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50"></div>
               </div>
             </div>
-            <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 w-max">
-              <p className="text-white text-center text-sm font-bold bg-black/70 px-4 py-2 rounded-lg backdrop-blur-sm border border-white/20">
-                Center physical evidence in frame
+            <div className="absolute -bottom-14 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+              <p className="text-white text-center text-sm font-bold bg-black/80 px-6 py-2 rounded-xl backdrop-blur-sm border border-white/10">
+                📸 Center the issue in frame
               </p>
             </div>
           </div>
         </div>
 
-        {/* Analyzing overlay */}
+        {/* Analyzing Overlay */}
         {analyzing && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center">
             <div className="text-center max-w-md px-6">
-              <div className="relative w-28 h-28 mx-auto mb-8">
-                <div className="absolute inset-0 border-4 border-green-200 border-t-green-500 rounded-full animate-spin"></div>
-                <div className="absolute inset-0 border-4 border-transparent border-t-blue-500 rounded-full animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
+              <div className="relative w-32 h-32 mx-auto mb-8">
+                <div className="absolute inset-0 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+                <div className="absolute inset-0 border-4 border-transparent border-t-purple-500 rounded-full animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-4xl">🔍</span>
+                  <span className="text-5xl">🔍</span>
                 </div>
               </div>
               
-              <h4 className="text-white font-black text-2xl mb-3 animate-pulse">
-                🛡️ Ethical AI Analysis
+              <h4 className="text-white font-black text-3xl mb-4 animate-pulse">
+                AI Analyzing
               </h4>
               
-              <div className="bg-white/10 rounded-xl p-4 mb-4 border border-white/20">
-                <p className="text-green-400 font-bold text-lg mb-2">{analysisStage}</p>
-                <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-green-500 via-blue-500 to-purple-500 animate-pulse"></div>
+              <div className="bg-white/10 rounded-2xl p-5 mb-5 border border-white/20 backdrop-blur-sm">
+                <p className="text-blue-400 font-bold text-lg mb-3">{analysisStage}</p>
+                <div className="w-full bg-white/20 rounded-full h-2.5 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-pulse"></div>
                 </div>
               </div>
 
-              <div className="space-y-2 text-left bg-black/40 rounded-xl p-4 border border-white/10">
-                <p className="text-white/70 text-sm flex items-center gap-2">
-                  <span className="text-green-400">✓</span> Checking for physical evidence
+              <div className="space-y-3 text-left bg-black/40 rounded-2xl p-5 border border-white/10">
+                <p className="text-white/80 text-sm flex items-center gap-3">
+                  <span className="text-green-400 text-lg">✓</span> 
+                  <span>Checking physical evidence</span>
                 </p>
-                <p className="text-white/70 text-sm flex items-center gap-2">
-                  <span className="text-green-400">✓</span> Running ethics validation
+                <p className="text-white/80 text-sm flex items-center gap-3">
+                  <span className="text-green-400 text-lg">✓</span> 
+                  <span>Running ethics validation</span>
                 </p>
-                <p className="text-white/70 text-sm flex items-center gap-2">
-                  <span className="text-yellow-400 animate-pulse">⟳</span> Analyzing objectively
+                <p className="text-white/80 text-sm flex items-center gap-3">
+                  <span className="text-yellow-400 text-lg animate-pulse">⟳</span> 
+                  <span>Analyzing objectively</span>
                 </p>
-                <p className="text-white/70 text-sm flex items-center gap-2">
-                  <span className="text-white/40">○</span> Creating audit trail
+                <p className="text-white/70 text-sm flex items-center gap-3">
+                  <span className="text-white/40 text-lg">○</span> 
+                  <span>Creating audit trail</span>
                 </p>
               </div>
 
-              <div className="mt-4 bg-orange-500/20 border border-orange-500/50 rounded-lg p-3">
-                <p className="text-orange-300 text-xs font-semibold">
-                  ⚖️ This analysis is logged and reviewable
+              <div className="mt-5 bg-orange-500/20 border border-orange-500/40 rounded-xl p-4 backdrop-blur-sm">
+                <p className="text-orange-300 text-xs font-semibold flex items-center justify-center gap-2">
+                  <span>⚖️</span>
+                  <span>This analysis is logged and reviewable</span>
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Error overlay */}
+        {/* Error Display */}
         {error && (
           <div className="absolute top-4 left-4 right-4 bg-red-500/95 backdrop-blur-sm text-white p-4 rounded-xl shadow-2xl border-2 border-red-300">
             <div className="flex items-start gap-3">
               <span className="text-2xl">⚠️</span>
               <div className="flex-1">
-                <p className="font-bold text-sm mb-1">Analysis Blocked</p>
+                <p className="font-bold text-sm mb-1">Analysis Error</p>
                 <p className="text-sm opacity-90">{error}</p>
               </div>
             </div>
@@ -616,33 +668,33 @@ Return ONLY valid JSON. No markdown. No extra text.`;
         )}
       </div>
 
-      {/* Enhanced Controls */}
-      <div className="bg-gradient-to-t from-black via-black/95 to-transparent p-6 pt-8">
+      {/* Bottom Controls */}
+      <div className="bg-gradient-to-t from-black via-black/95 to-transparent p-6 pt-10">
         <div className="max-w-md mx-auto">
-          {/* Warning Banner */}
-          <div className="mb-4 bg-gradient-to-r from-orange-600/30 to-red-600/30 backdrop-blur-sm border border-orange-500/50 rounded-xl p-4">
+          {/* Legal Notice */}
+          <div className="mb-4 bg-gradient-to-r from-orange-600/20 to-red-600/20 backdrop-blur-sm border border-orange-500/40 rounded-xl p-4">
             <div className="flex items-start gap-3">
               <span className="text-2xl">⚖️</span>
               <div className="flex-1">
-                <p className="text-white font-bold text-sm mb-1">
-                  Legal Notice: Evidence-Based Reporting Only
+                <p className="text-white font-bold text-sm mb-2">
+                  Legal Notice: Evidence-Based Reporting
                 </p>
                 <p className="text-white/80 text-xs leading-relaxed">
                   • Reports are timestamped, geotagged & auditable<br/>
                   • False reports may have legal consequences<br/>
-                  • All captures are reviewed by moderators<br/>
+                  • All captures reviewed by moderators<br/>
                   • Focus on physical evidence, not people
                 </p>
               </div>
             </div>
           </div>
 
-          {/* What AI Detects */}
+          {/* Detection Capabilities */}
           <div className="mb-4 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-green-600/20 backdrop-blur-sm border border-white/20 rounded-xl p-3">
             <p className="text-white text-xs font-semibold text-center mb-2">
-              ✓ AI Detects Physical Evidence:
+              🤖 AI Detects Physical Evidence:
             </p>
-            <div className="grid grid-cols-3 gap-2 text-white/80 text-xs">
+            <div className="grid grid-cols-3 gap-2 text-white/80 text-xs text-center">
               <div>🚧 Infrastructure</div>
               <div>💡 Lighting</div>
               <div>🎨 Vandalism</div>
@@ -653,16 +705,16 @@ Return ONLY valid JSON. No markdown. No extra text.`;
           </div>
 
           {/* Instructions */}
-          <div className="mb-4 text-center">
+          <div className="mb-5 text-center">
             <p className="text-white/90 text-sm font-semibold">
               📸 Capture clear evidence of physical issues
             </p>
             <p className="text-white/60 text-xs mt-1">
-              AI analyzes infrastructure & safety issues only
+              AI will analyze and auto-fill your report
             </p>
           </div>
 
-          {/* Buttons */}
+          {/* Action Buttons */}
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={handleClose}
@@ -673,7 +725,7 @@ Return ONLY valid JSON. No markdown. No extra text.`;
 
             <button
               onClick={captureAndAnalyze}
-              disabled={analyzing || !!error || !userLocation}
+              disabled={analyzing || !!error}
               className="flex-1 px-6 py-4 bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 text-white rounded-xl font-black text-base shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               {analyzing ? (
@@ -681,25 +733,20 @@ Return ONLY valid JSON. No markdown. No extra text.`;
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   Analyzing...
                 </>
-              ) : !userLocation ? (
-                <>
-                  <span className="text-xl">📍</span>
-                  Getting Location...
-                </>
               ) : (
                 <>
                   <span className="text-xl">🔒</span>
-                  Secure Capture
+                  Capture & Analyze
                 </>
               )}
             </button>
           </div>
 
-          {/* Trust indicators */}
+          {/* Trust Indicators */}
           <div className="mt-4 flex items-center justify-center gap-3 text-white/50 text-xs">
             <div className="flex items-center gap-1">
               <span>🔒</span>
-              <span>Encrypted</span>
+              <span>Secure</span>
             </div>
             <div className="flex items-center gap-1">
               <span>✓</span>
@@ -707,11 +754,11 @@ Return ONLY valid JSON. No markdown. No extra text.`;
             </div>
             <div className="flex items-center gap-1">
               <span>📋</span>
-              <span>Audited</span>
+              <span>Logged</span>
             </div>
             <div className="flex items-center gap-1">
               <span>🛡️</span>
-              <span>Ethical AI</span>
+              <span>Ethical</span>
             </div>
           </div>
         </div>
