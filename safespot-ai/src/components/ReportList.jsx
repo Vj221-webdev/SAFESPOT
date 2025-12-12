@@ -1,12 +1,54 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getAuth } from 'firebase/auth';
 
 const ReportList = ({ user }) => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [userRole, setUserRole] = useState('user');
+
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!currentUser) {
+        setUserRole('user');
+        return;
+      }
+
+      try {
+        // Check Firestore
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists() && (userDoc.data().role === 'admin' || userDoc.data().isAdmin === true)) {
+          setUserRole('admin');
+          return;
+        }
+
+        // Check by email
+        const adminEmails = [
+          'admin@safespot.com',
+          'vijaychhetri@gmail.com', // ADD YOUR EMAIL
+        ];
+        
+        if (adminEmails.includes(currentUser.email)) {
+          setUserRole('admin');
+          return;
+        }
+
+        setUserRole('user');
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setUserRole('user');
+      }
+    };
+
+    checkAdminStatus();
+  }, [currentUser]);
 
   const categories = {
     lighting: { 
@@ -54,6 +96,24 @@ const ReportList = ({ user }) => {
         </svg>
       )
     },
+    environmental: {
+      label: 'Environmental',
+      gradient: 'from-teal-400 to-green-500',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    traffic: {
+      label: 'Traffic',
+      gradient: 'from-red-400 to-orange-500',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      )
+    },
     other: { 
       label: 'Other', 
       gradient: 'from-blue-400 to-cyan-500',
@@ -72,8 +132,26 @@ const ReportList = ({ user }) => {
     critical: { label: 'Critical', color: 'bg-red-600', gradient: 'from-red-600 to-pink-600', icon: '●●●●', pulse: true }
   };
 
+  // Fetch reports based on user role
   useEffect(() => {
-    const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    let q;
+
+    if (userRole === 'admin') {
+      console.log('🔑 Admin: Fetching ALL reports');
+      q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+    } else {
+      console.log('👤 User: Fetching only YOUR reports');
+      q = query(
+        collection(db, 'reports'),
+        where('reporterId', '==', currentUser.uid),
+        orderBy('timestamp', 'desc')
+      );
+    }
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const reportsData = snapshot.docs.map(doc => ({
@@ -89,7 +167,7 @@ const ReportList = ({ user }) => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser, userRole]);
 
   const getFilteredAndSortedReports = () => {
     let filtered = reports;
@@ -147,6 +225,18 @@ const ReportList = ({ user }) => {
   const totalReports = reports.length;
   const urgentCount = reports.filter(r => r.urgency === 'critical' || r.urgency === 'high').length;
 
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md text-center">
+          <div className="text-6xl mb-4">🔒</div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Login Required</h3>
+          <p className="text-gray-600 mb-6">Please log in to view reports</p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 flex flex-col items-center justify-center gap-6">
@@ -157,7 +247,9 @@ const ReportList = ({ user }) => {
         </div>
         <div className="text-center">
           <p className="text-gray-900 text-xl font-black mb-2">Loading Reports...</p>
-          <p className="text-gray-600 font-medium">Fetching community data</p>
+          <p className="text-gray-600 font-medium">
+            {userRole === 'admin' ? 'Fetching all community reports' : 'Fetching your reports'}
+          </p>
         </div>
       </div>
     );
@@ -166,6 +258,19 @@ const ReportList = ({ user }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 px-4 py-8">
       <div className="max-w-7xl mx-auto">
+        {/* Admin Badge */}
+        {userRole === 'admin' && (
+          <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-purple-500 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔑</span>
+              <div>
+                <h4 className="font-bold text-purple-900">Admin View</h4>
+                <p className="text-purple-700 text-sm">You're viewing ALL community reports</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-fade-in">
           <div className="bg-white rounded-3xl shadow-xl p-6 border border-gray-100 hover:shadow-2xl hover:scale-105 transition-all duration-300 group">
@@ -177,7 +282,9 @@ const ReportList = ({ user }) => {
               </div>
             </div>
             <p className="text-4xl font-black text-gray-900 mb-1">{totalReports}</p>
-            <p className="text-sm font-semibold text-gray-600">Total Reports</p>
+            <p className="text-sm font-semibold text-gray-600">
+              {userRole === 'admin' ? 'Total Reports' : 'Your Reports'}
+            </p>
           </div>
 
           <div className="bg-white rounded-3xl shadow-xl p-6 border border-gray-100 hover:shadow-2xl hover:scale-105 transition-all duration-300 group">
@@ -212,7 +319,7 @@ const ReportList = ({ user }) => {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
             <div>
               <h2 className="text-4xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
-                Community Reports
+                {userRole === 'admin' ? 'All Community Reports' : 'My Reports'}
               </h2>
               <p className="text-gray-600 font-medium text-lg">
                 {filteredReports.length} {filteredReports.length === 1 ? 'report' : 'reports'}
@@ -281,7 +388,9 @@ const ReportList = ({ user }) => {
             <h3 className="text-3xl font-black text-gray-900 mb-3">No Reports Found</h3>
             <p className="text-gray-600 font-medium text-lg mb-8 max-w-md mx-auto">
               {filter === 'all' 
-                ? 'Be the first to report a community issue and make a difference!' 
+                ? (userRole === 'admin' 
+                    ? 'No reports have been submitted yet.' 
+                    : "You haven't submitted any reports yet. Be the first to report a community issue!")
                 : `No reports in ${categories[filter]?.label} category yet.`}
             </p>
             {filter !== 'all' && (
@@ -384,9 +493,29 @@ const ReportList = ({ user }) => {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-100 rounded-xl">
-                          <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                          <span className="text-xs text-yellow-800 font-black">Pending</span>
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${
+                          report.status === 'resolved' ? 'bg-green-100' :
+                          report.status === 'approved' ? 'bg-blue-100' :
+                          report.status === 'rejected' ? 'bg-red-100' :
+                          'bg-yellow-100'
+                        }`}>
+                          <div className={`w-2 h-2 rounded-full ${
+                            report.status === 'resolved' ? 'bg-green-500' :
+                            report.status === 'approved' ? 'bg-blue-500' :
+                            report.status === 'rejected' ? 'bg-red-500' :
+                            'bg-yellow-500 animate-pulse'
+                          }`}></div>
+                          <span className={`text-xs font-black ${
+                            report.status === 'resolved' ? 'text-green-800' :
+                            report.status === 'approved' ? 'text-blue-800' :
+                            report.status === 'rejected' ? 'text-red-800' :
+                            'text-yellow-800'
+                          }`}>
+                            {report.status === 'resolved' ? 'Resolved' :
+                             report.status === 'approved' ? 'Approved' :
+                             report.status === 'rejected' ? 'Rejected' :
+                             'Pending'}
+                          </span>
                         </div>
                       </div>
                     </div>
